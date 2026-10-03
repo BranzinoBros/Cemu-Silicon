@@ -148,6 +148,7 @@ endif()
 option(ENABLE_CUBEB "Enabled cubeb backend" ON)
 
 option(ENABLE_WXWIDGETS "Build with wxWidgets UI (Currently required)" ON)
+option(ENABLE_FIBER_SELFTEST "Build the standalone fiber self-test executables" OFF)
 
 find_package(Threads REQUIRED)
 find_package(CURL REQUIRED)
