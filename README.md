@@ -1,49 +1,37 @@
-# **Cemu - Wii U emulator**
+# Cemu-Silicon
 
-[![Build Process](https://github.com/cemu-project/Cemu/actions/workflows/build.yml/badge.svg)](https://github.com/cemu-project/Cemu/actions/workflows/build.yml)
-[![Discord](https://img.shields.io/discord/286429969104764928?label=Cemu&logo=discord&logoColor=FFFFFF)](https://discord.gg/5psYsup)
-[![Matrix Server](https://img.shields.io/matrix/cemu:cemu.info?server_fqdn=matrix.cemu.info&label=cemu:cemu.info&logo=matrix&logoColor=FFFFFF)](https://matrix.to/#/#cemu:cemu.info)
+A Wii U emulator for Apple Silicon Macs, forked from [Cemu](https://github.com/cemu-project/Cemu).
 
-This is the code repository of Cemu, a Wii U emulator that is able to run most Wii U games and homebrew in a playable state.
-It's written in C/C++ and is being actively developed with new features and fixes.
+Cemu-Silicon runs on one platform only: Macs with Apple Silicon (M1 and later) on macOS 26 or newer. We dropped Windows, Linux and Intel Macs so every change can target that one machine:
 
-Cemu is currently only available for 64-bit Windows, Linux & macOS devices.
+- the native arm64 PowerPC recompiler (JIT) instead of Rosetta,
+- the Metal renderer and Apple's unified memory instead of a Vulkan translation layer,
+- performance and efficiency cores, 16 KB pages, and the ARMv8 crypto and NEON instructions every Apple chip has.
 
-### Links:
- - [Open Source Announcement](https://www.reddit.com/r/cemu/comments/wwa22c/cemu_20_announcement_linux_builds_opensource_and/)
- - [Official Website](https://cemu.info)
- - [Compatibility List/Wiki](https://wiki.cemu.info/wiki/Main_Page)
- - [Official Subreddit](https://reddit.com/r/Cemu)
- - [Official Discord](https://discord.gg/5psYsup)
- - [Official Matrix Server](https://matrix.to/#/#cemu:cemu.info)
- - [Setup Guide](https://cemu.cfw.guide)
+The goal is the fastest and most power-efficient Wii U emulation possible on a Mac, without giving up accuracy.
 
-#### Other relevant repositories:
- - [Cemu-Language](https://github.com/cemu-project/Cemu-Language)
- - [Cemu's Community Graphic Packs](https://github.com/cemu-project/cemu_graphic_packs)
+## Status
 
-## Download
+Early work in progress. There are no releases yet. If you want a stable emulator today, use [official Cemu](https://github.com/cemu-project/Cemu/releases).
 
-You can download the latest Cemu releases for Windows, Linux and Mac from the [GitHub Releases](https://github.com/cemu-project/Cemu/releases/). For Linux you can also find Cemu on [Flathub](https://flathub.org/apps/info.cemu.Cemu).
+## Relationship to Cemu
 
-On Windows, Cemu is available both as an installer and in a portable format, where no installation is required besides extracting it in a safe place.
+Cemu-Silicon is an independent fork. It is not affiliated with or endorsed by the Cemu team, so please don't report Cemu-Silicon problems to them.
 
-The native macOS build is currently purely experimental and should not be considered stable or ready for issue-free gameplay. There are also known issues with degraded performance due to the use of MoltenVK and Rosetta for ARM Macs. We appreciate your patience while we improve Cemu for macOS.
+Most of the code in this fork is written with AI assistance (Claude Code). Cemu's [contribution guidelines](https://github.com/cemu-project/Cemu/blob/main/CONTRIBUTING.md) don't accept AI-written code, so nothing from this fork is sent upstream. Fixes flow one way, from Cemu into this fork.
 
-Pre-2.0 releases can be found on Cemu's [changelog page](https://cemu.info/changelog.html).
+All credit for the emulator itself goes to Exzap and the Cemu contributors.
 
-## Build Instructions
+## Requirements
 
-To compile Cemu yourself on Windows, Linux or macOS, view [BUILD.md](/BUILD.md).
+- A Mac with Apple Silicon (M1 or later)
+- macOS 26 or later
+- Your own Wii U game dumps and keys. Cemu-Silicon does not include or download any games.
 
-## Issues
+## Building
 
-Issues with the emulator should be filed using [GitHub Issues](https://github.com/cemu-project/Cemu/issues).  
-The old bug tracker can be found at [bugs.cemu.info](https://bugs.cemu.info) and still contains relevant issues and feature suggestions.
-
-## Contributing
-
-If you want to contribute you can take a look at our [contribution guidelines](/CONTRIBUTING.md).
+See [BUILD.md](/BUILD.md).
 
 ## License
-Cemu is licensed under [Mozilla Public License 2.0](/LICENSE.txt). Exempt from this are all files in the dependencies directory for which the licenses of the original code apply as well as some individual files in the src folder, as specified in those file headers respectively.
+
+Cemu-Silicon is licensed under the [Mozilla Public License 2.0](/LICENSE.txt), like Cemu. The exceptions are the files in the dependencies directory, which keep their original licenses, and the individual files in `src` whose headers say otherwise.
