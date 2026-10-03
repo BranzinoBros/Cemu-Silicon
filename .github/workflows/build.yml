@@ -59,6 +59,13 @@ jobs:
       with:
         cmake-version: '3.29.0'
 
+    - name: "Fiber self-test"
+      run: |
+        cmake -S src/util/Fiber/tests -B build-fibertest -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64
+        cmake --build build-fibertest
+        ./build-fibertest/FiberSelfTest
+        ./build-fibertest/FiberSelfTestUcontext 100000
+
     - name: "Bootstrap vcpkg"
       run: |
         bash ./dependencies/vcpkg/bootstrap-vcpkg.sh
