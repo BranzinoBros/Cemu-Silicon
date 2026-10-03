@@ -70,24 +70,10 @@ add_library(CemuUtil
   Zir/Passes/ZpIRRegisterAllocator.cpp
 )
 
-if(WIN32)
-	target_sources(CemuUtil PRIVATE Fiber/FiberWin.cpp)
-	target_sources(CemuUtil PRIVATE MemMapper/MemMapperWin.cpp)
-	target_sources(CemuUtil PRIVATE SystemInfo/SystemInfoWin.cpp)
-elseif(UNIX)
-	target_sources(CemuUtil PRIVATE Fiber/FiberUnix.cpp)
-	target_sources(CemuUtil PRIVATE MemMapper/MemMapperUnix.cpp)
-	target_sources(CemuUtil PRIVATE SystemInfo/SystemInfoUnix.cpp)
-	if(NOT APPLE)
-		target_sources(CemuUtil PRIVATE SystemInfo/SystemInfoLinux.cpp)
-	else()
-		target_sources(CemuUtil PRIVATE SystemInfo/SystemInfoMac.cpp)
-	endif()
-else()
-	target_sources(CemuUtil PRIVATE SystemInfo/SystemInfoStub.cpp)
-endif()
-
-set_property(TARGET CemuUtil PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+target_sources(CemuUtil PRIVATE Fiber/FiberUnix.cpp)
+target_sources(CemuUtil PRIVATE MemMapper/MemMapperUnix.cpp)
+target_sources(CemuUtil PRIVATE SystemInfo/SystemInfoUnix.cpp)
+target_sources(CemuUtil PRIVATE SystemInfo/SystemInfoMac.cpp)
 
 cemu_use_precompiled_header(CemuUtil)
 

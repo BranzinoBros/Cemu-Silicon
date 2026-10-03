@@ -38,33 +38,26 @@ if (ENABLE_VCPKG)
 		)
 	endif()
 
-	if(UNIX AND NOT APPLE)
-		set(VCPKG_OVERLAY_PORTS "${CMAKE_CURRENT_LIST_DIR}/dependencies/vcpkg_overlay_ports_linux;${CMAKE_CURRENT_LIST_DIR}/dependencies/vcpkg_overlay_ports")
-	elseif(APPLE)
-		set(VCPKG_OVERLAY_PORTS "${CMAKE_CURRENT_LIST_DIR}/dependencies/vcpkg_overlay_ports_mac;${CMAKE_CURRENT_LIST_DIR}/dependencies/vcpkg_overlay_ports")
-		set(VCPKG_OVERLAY_TRIPLETS "${CMAKE_CURRENT_LIST_DIR}/dependencies/vcpkg_overlay_triplets")
-	else()
-		set(VCPKG_OVERLAY_PORTS "${CMAKE_CURRENT_LIST_DIR}/dependencies/vcpkg_overlay_ports_win;${CMAKE_CURRENT_LIST_DIR}/dependencies/vcpkg_overlay_ports")
-	endif()
+	set(VCPKG_OVERLAY_PORTS "${CMAKE_CURRENT_LIST_DIR}/dependencies/vcpkg_overlay_ports_mac;${CMAKE_CURRENT_LIST_DIR}/dependencies/vcpkg_overlay_ports")
+	set(VCPKG_OVERLAY_TRIPLETS "${CMAKE_CURRENT_LIST_DIR}/dependencies/vcpkg_overlay_triplets")
 	set(CMAKE_TOOLCHAIN_FILE "${CMAKE_CURRENT_SOURCE_DIR}/dependencies/vcpkg/scripts/buildsystems/vcpkg.cmake"
 		CACHE STRING "Vcpkg toolchain file")
 	# Set this so that all the various find_package() calls don't need an explicit
 	# CONFIG option
 	set(CMAKE_FIND_PACKAGE_PREFER_CONFIG TRUE)
-	if (WIN32)
-		set(VCPKG_TARGET_TRIPLET "x64-windows-static" CACHE STRING "")
-	endif()
 endif()
 
-if (APPLE)
-	# Apple Silicon only. macOS 26 is the first release with Metal 4.
-	# Keep in sync with dependencies/vcpkg_overlay_triplets/arm64-osx.cmake
-	# and MACOSX_MINIMUM_SYSTEM_VERSION in src/CMakeLists.txt.
-	set(CMAKE_OSX_DEPLOYMENT_TARGET "26.0" CACHE STRING "Minimum macOS version")
-	set(CMAKE_OSX_ARCHITECTURES "arm64" CACHE STRING "")
-endif()
+# Apple Silicon only. macOS 26 is the first release with Metal 4.
+# Keep in sync with dependencies/vcpkg_overlay_triplets/arm64-osx.cmake
+# and MACOSX_MINIMUM_SYSTEM_VERSION in src/CMakeLists.txt.
+set(CMAKE_OSX_DEPLOYMENT_TARGET "26.0" CACHE STRING "Minimum macOS version")
+set(CMAKE_OSX_ARCHITECTURES "arm64" CACHE STRING "")
 
 project(Cemu VERSION 2.0.0)
+
+if (NOT APPLE OR NOT CMAKE_OSX_ARCHITECTURES STREQUAL "arm64")
+	message(FATAL_ERROR "Cemu-Silicon only supports macOS on Apple Silicon (arm64)")
+endif()
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
@@ -85,61 +78,18 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO ON)
 
-if (MSVC)
-	set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT CemuBin)
-	# floating point model: precise, fiber safe optimizations
-	add_compile_options(/EHsc /fp:precise)
-	if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-		# Speeds up static linking (especially helpful in incremental compilation)
-		if((CMAKE_LINKER MATCHES ".*lld-link.*") AND (CMAKE_AR MATCHES ".*llvm-lib.*"))
-			set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY STATIC_LIBRARY_OPTIONS /llvmlibthin)
-		endif()
-  	else()
-	  add_compile_options(/GT)
-	endif()
-	# enable additional optimization flags for release builds
-	add_compile_options($<$<CONFIG:Release,RelWithDebInfo>:/Oi>) # enable intrinsic functions
-	add_compile_options($<$<CONFIG:Release,RelWithDebInfo>:/Ot>) # favor speed
-endif()
-
 if(CMAKE_GENERATOR STREQUAL "Xcode")
 	set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY XCODE_STARTUP_PROJECT CemuBin)
 endif()
 
-if (APPLE)
-    enable_language(OBJC OBJCXX)
-endif()
+enable_language(OBJC OBJCXX)
 
-if (UNIX AND NOT APPLE)
-	option(ENABLE_WAYLAND "Build with Wayland support" ON)
-	option(ENABLE_FERAL_GAMEMODE "Enables Feral Interactive GameMode Support" ON)
-	option(ENABLE_BLUEZ "Build with Bluez support" ON)
-endif()
-
-if (APPLE)
-    set(ENABLE_METAL_DEFAULT ON)
-	set(ENABLE_OPENGL_DEFAULT OFF)
-else()
-    set(ENABLE_METAL_DEFAULT OFF)
-	set(ENABLE_OPENGL_DEFAULT ON)
-endif()
-
-option(ENABLE_OPENGL "Enables the OpenGL backend" ${ENABLE_OPENGL_DEFAULT})
+option(ENABLE_OPENGL "Enables the OpenGL backend" OFF)
 option(ENABLE_VULKAN "Enables the Vulkan backend" ON)
-option(ENABLE_METAL "Enables the Metal backend" ${ENABLE_METAL_DEFAULT})
+option(ENABLE_METAL "Enables the Metal backend" ON)
 option(ENABLE_DISCORD_RPC "Enables the Discord Rich Presence feature" ON)
 
-if (ENABLE_METAL AND NOT APPLE)
-    message(FATAL_ERROR "Metal backend is only supported on Apple platforms")
-endif()
-
 # input backends
-if (WIN32)
-	option(ENABLE_XINPUT "Enables the usage of XInput" ON)
-	option(ENABLE_DIRECTINPUT "Enables the usage of DirectInput" ON)
-	add_compile_definitions(HAS_DIRECTINPUT)
-endif()
-
 option(ENABLE_HIDAPI "Build with HIDAPI" ON)
 option(ENABLE_SDL "Enables the SDLController backend" ON)
 option(ENABLE_LIBUSB "Build with libusb support" ON)
@@ -149,10 +99,6 @@ if (ENABLE_LIBUSB)
 endif()
 
 # audio backends
-if (WIN32)
-	option(ENABLE_DIRECTAUDIO "Enables the directaudio backend" ON)
-	option(ENABLE_XAUDIO "Enables the xaudio backend" ON)
-endif()
 option(ENABLE_CUBEB "Enabled cubeb backend" ON)
 
 option(ENABLE_WXWIDGETS "Build with wxWidgets UI (Currently required)" ON)
@@ -181,31 +127,6 @@ if (NOT TARGET glslang::SPIRV AND TARGET SPIRV)
 	add_library(glslang::SPIRV ALIAS SPIRV)
 endif()
 
-if (UNIX AND NOT APPLE)
-	find_package(X11 REQUIRED)
-	if (ENABLE_WAYLAND)
-		find_package(Wayland REQUIRED Client)
-		find_package(WaylandScanner REQUIRED)
-		find_package(WaylandProtocols 1.15 REQUIRED)
-
-		ecm_add_wayland_client_protocol(WAYLAND_PROTOCOL_SRCS
-			PROTOCOL "${WaylandProtocols_DATADIR}/stable/viewporter/viewporter.xml"
-			BASENAME viewporter)
-		add_library(CemuWaylandProtocols STATIC ${WAYLAND_PROTOCOL_SRCS})
-		target_include_directories(CemuWaylandProtocols PUBLIC "${CMAKE_CURRENT_BINARY_DIR}")
-		target_include_directories(CemuWaylandProtocols PRIVATE ${Wayland_INCLUDE_DIRS})
-		add_compile_definitions(HAS_WAYLAND)
-	endif()
-	find_package(GTK3 REQUIRED)
-
-	if(ENABLE_BLUEZ)
-		find_package(bluez REQUIRED)
-		set(SUPPORTS_WIIMOTE ON)
-		add_compile_definitions(HAS_BLUEZ)
-	endif()
-
-endif()
-
 if (ENABLE_VULKAN)
 	include_directories("dependencies/Vulkan-Headers/include")
 	add_compile_definitions(ENABLE_VULKAN)
@@ -232,14 +153,6 @@ if (ENABLE_HIDAPI)
 	add_compile_definitions(HAS_HIDAPI)
 endif ()
 
-if(UNIX AND NOT APPLE)
-	if(ENABLE_FERAL_GAMEMODE)
-		add_compile_definitions(ENABLE_FERAL_GAMEMODE)
-		add_subdirectory(dependencies/gamemode EXCLUDE_FROM_ALL)
-		target_include_directories(gamemode INTERFACE ./dependencies/gamemode/lib)
-	endif()
-endif()
-
 if (ENABLE_WXWIDGETS)
 	find_package(wxWidgets 3.3 REQUIRED COMPONENTS base core gl propgrid xrc)
 endif()
@@ -252,9 +165,7 @@ if (ENABLE_CUBEB)
 		option(BUILD_TESTS "" OFF)
 		option(BUILD_TOOLS "" OFF)
 		option(BUNDLE_SPEEX "" OFF)
-		set(USE_WINMM OFF CACHE BOOL "")
 		add_subdirectory("dependencies/cubeb" EXCLUDE_FROM_ALL SYSTEM)
-		set_property(TARGET cubeb PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 		add_library(cubeb::cubeb ALIAS cubeb)
 	endif()
 	add_compile_definitions("HAS_CUBEB=1")

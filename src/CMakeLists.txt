@@ -10,47 +10,27 @@ if(NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
 	message( FATAL_ERROR "Pointers are not 64bit" )
 endif()
 
-if(MSVC)
-	add_compile_definitions(WIN32_LEAN_AND_MEAN CURL_STATICLIB)
-elseif(UNIX)
-	if(APPLE)
-		if (ENABLE_VULKAN)
-			add_compile_definitions(
-				_XOPEN_SOURCE
-				VK_USE_PLATFORM_MACOS_MVK
-				VK_USE_PLATFORM_METAL_EXT
-			)
-		else()
-			add_compile_definitions(_XOPEN_SOURCE)
-		endif()
-	else()
-		if (ENABLE_VULKAN)
-			add_compile_definitions(
-				VK_USE_PLATFORM_XLIB_KHR # legacy. Do we need to support XLIB surfaces?
-				VK_USE_PLATFORM_XCB_KHR
-			)
-			if (ENABLE_WAYLAND)
-				add_compile_definitions(VK_USE_PLATFORM_WAYLAND_KHR)
-			endif()
-		endif()
-	endif()
-	# warnings
-	if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
-		add_compile_options(-Wno-ambiguous-reversed-operator)
-	endif()
-
-    add_compile_options(-Wno-multichar -Wno-invalid-offsetof -Wno-switch -Wno-ignored-attributes -Wno-deprecated-enum-enum-conversion)
+if (ENABLE_VULKAN)
+	add_compile_definitions(
+		_XOPEN_SOURCE
+		VK_USE_PLATFORM_MACOS_MVK
+		VK_USE_PLATFORM_METAL_EXT
+	)
+else()
+	add_compile_definitions(_XOPEN_SOURCE)
 endif()
+# warnings
+if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
+	add_compile_options(-Wno-ambiguous-reversed-operator)
+endif()
+
+add_compile_options(-Wno-multichar -Wno-invalid-offsetof -Wno-switch -Wno-ignored-attributes -Wno-deprecated-enum-enum-conversion)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
-# on msvc we can reuse the PCH from CemuCommon, on other platforms it's not straight forward to reuse the PCH so we opt out of it
+# reusing the PCH from CemuCommon is not straight forward with clang, so every target builds its own
 function(cemu_use_precompiled_header target_name)
-	if(MSVC)
-		target_precompile_headers(${target_name} REUSE_FROM CemuCommon)
-	else()
-		target_precompile_headers(${target_name} PRIVATE "${CMAKE_SOURCE_DIR}/src/Common/precompiled.h")
-	endif()
+	target_precompile_headers(${target_name} PRIVATE "${CMAKE_SOURCE_DIR}/src/Common/precompiled.h")
 endfunction()
 
 add_subdirectory(Common)
@@ -71,20 +51,7 @@ add_executable(CemuBin
 
 cemu_use_precompiled_header(CemuBin)
 
-if(MSVC AND MSVC_VERSION EQUAL 1940)
-	# workaround for an msvc issue on VS 17.10 where generated ILK files are too large
-	# see https://developercommunity.visualstudio.com/t/After-updating-to-VS-1710-the-size-of-/10665511
-	set_target_properties(CemuBin PROPERTIES LINK_FLAGS "/INCREMENTAL:NO")
-endif()
-
-if(WIN32)
-	target_sources(CemuBin PRIVATE
-	resource/cemu.rc
-	../dist/windows/cemu.manifest
-	)
-endif()
-
-if(APPLE AND CMAKE_GENERATOR STREQUAL "Xcode")
+if(CMAKE_GENERATOR STREQUAL "Xcode")
     set_target_properties(CemuBin PROPERTIES
         XCODE_ATTRIBUTE_ENABLE_DEBUG_DYLIB[variant=Debug] "YES"
     )
@@ -92,8 +59,6 @@ endif()
 
 string(TIMESTAMP CURRENT_YEAR "%Y" UTC)
 
-set_property(TARGET CemuBin PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-set_property(TARGET CemuBin PROPERTY WIN32_EXECUTABLE $<NOT:$<CONFIG:Debug>>)
 set(OUTPUT_NAME "Cemu_$<LOWER_CASE:$<CONFIG>>")
 
 if (MACOS_BUNDLE)
@@ -175,24 +140,22 @@ if (MACOS_BUNDLE)
 		)
 	endif()
 else()
-    if(APPLE)
-		if (ENABLE_VULKAN)
-			find_library(MOLTENVK_LIBRARY
-				NAMES MoltenVK moltenvk libMoltenVK.dylib
-				PATHS /usr/local/lib /opt/homebrew/lib
-			)
-			if(MOLTENVK_LIBRARY)
-				message(STATUS "Found MoltenVK: ${MOLTENVK_LIBRARY}")
-				target_link_libraries(CemuBin PRIVATE ${MOLTENVK_LIBRARY})
-			else()
-				message(WARNING "libMoltenVK.dylib not found")
-			endif()
-			set_target_properties(CemuBin PROPERTIES
-				BUILD_WITH_INSTALL_RPATH TRUE
-				INSTALL_RPATH "/usr/local/lib;/opt/homebrew/lib"
-			)
+	if (ENABLE_VULKAN)
+		find_library(MOLTENVK_LIBRARY
+			NAMES MoltenVK moltenvk libMoltenVK.dylib
+			PATHS /usr/local/lib /opt/homebrew/lib
+		)
+		if(MOLTENVK_LIBRARY)
+			message(STATUS "Found MoltenVK: ${MOLTENVK_LIBRARY}")
+			target_link_libraries(CemuBin PRIVATE ${MOLTENVK_LIBRARY})
+		else()
+			message(WARNING "libMoltenVK.dylib not found")
 		endif()
-    endif()
+		set_target_properties(CemuBin PROPERTIES
+			BUILD_WITH_INSTALL_RPATH TRUE
+			INSTALL_RPATH "/usr/local/lib;/opt/homebrew/lib"
+		)
+	endif()
 endif()
 
 set_target_properties(CemuBin PROPERTIES
@@ -216,16 +179,3 @@ target_link_libraries(CemuBin PRIVATE
 	CemuInput
 	CemuUtil
 )
-
-if(UNIX AND NOT APPLE)
-	# due to nasm output some linkers will make stack executable
-	# cemu does not require this so we explicity disable it
-	target_link_options(CemuBin PRIVATE -z noexecstack)
-	# some residual debug info from boost/discord-rpc is normally included
-	# most likely not helpful in debugging problems with cemu code
-	target_link_options(CemuBin PRIVATE "$<$<CONFIG:Release>:-Xlinker;--strip-debug>")
-endif()
-
-if (BSD)
-	target_link_libraries(CemuBin PRIVATE execinfo SPIRV-Tools SPIRV-Tools-opt)
-endif()

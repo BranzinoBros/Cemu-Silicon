@@ -55,11 +55,6 @@
       ]
     },
     {
-      "name": "dbus",
-      "default-features": false,
-      "platform": "linux"
-    },
-    {
       "name": "tiff",
       "default-features": false,
       "features": [

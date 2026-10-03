@@ -39,8 +39,6 @@ target_sources(CemuComponents PRIVATE
 		DiscordPresence/DiscordRPCLite.h)
 endif()
 
-set_property(TARGET CemuComponents PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-
 cemu_use_precompiled_header(CemuComponents)
 
 target_include_directories(CemuComponents PUBLIC "../")

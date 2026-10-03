@@ -11,8 +11,6 @@ add_library(CemuConfig
     XMLConfig.h
 )
 
-set_property(TARGET CemuConfig PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-
 cemu_use_precompiled_header(CemuConfig)
 
 target_include_directories(CemuConfig PUBLIC "../")
