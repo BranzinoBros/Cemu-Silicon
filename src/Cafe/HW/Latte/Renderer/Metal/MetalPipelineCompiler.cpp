@@ -1,5 +1,6 @@
 #include "Cafe/HW/Latte/Renderer/Metal/MetalCommon.h"
 #include "Cafe/HW/Latte/Renderer/Metal/MetalPipelineCompiler.h"
+#include "Cafe/HW/Latte/Renderer/Metal/MetalPipelineCache.h"
 #include "Cafe/HW/Latte/Renderer/Metal/MetalRenderer.h"
 #include "Cafe/HW/Latte/Renderer/Metal/CachedFBOMtl.h"
 #include "Cafe/HW/Latte/Renderer/Metal/LatteToMtl.h"
@@ -370,7 +371,26 @@ bool MetalPipelineCompiler::Compile(bool forceCompile, bool isRenderThread, bool
 #ifdef CEMU_DEBUG_ASSERT
         desc->setLabel(GetLabel("Render pipeline state", desc));
 #endif
-       	pipeline = m_mtlr->GetDevice()->newRenderPipelineState(desc, MTL::PipelineOptionNone, nullptr, &error);
+        MetalBinaryArchive& binaryArchive = MetalPipelineCache::GetInstance().GetBinaryArchive();
+        if (binaryArchive.Attach(desc))
+        {
+            // Load the GPU binary from the archive, a miss returns nil instead of compiling
+            NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+            NS::Error* archiveError = nullptr;
+            pipeline = m_mtlr->GetDevice()->newRenderPipelineState(desc, MTL::PipelineOptionFailOnBinaryArchiveMiss, nullptr, &archiveError);
+            pool->release();
+            binaryArchive.ReportLookup(pipeline != nullptr);
+
+            // The archive is only needed for the lookup, any failure falls back to a regular compilation
+            desc->setBinaryArchives(nullptr);
+        }
+
+        if (!pipeline)
+        {
+            pipeline = m_mtlr->GetDevice()->newRenderPipelineState(desc, MTL::PipelineOptionNone, nullptr, &error);
+            if (pipeline)
+                binaryArchive.AddPipeline(desc);
+        }
     }
     auto end = std::chrono::high_resolution_clock::now();
 
