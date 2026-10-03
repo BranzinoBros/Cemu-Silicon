@@ -147,9 +147,8 @@ If you are getting a different error than any of the errors listed above, you ma
 
 ## macOS
 
-To compile Cemu, a recent enough compiler and STL with C++20 support is required! LLVM 13 and below
-don't support the C++20 feature set required, so either install LLVM from Homebrew or make sure that
-you have a recent enough version of Xcode. Xcode 15 is known to work.
+Cemu-Silicon runs on Apple Silicon Macs with macOS 26 or later, and builds with Xcode 26 or later
+(the macOS 26 SDK is required).
 
 ### Installing brew
 
