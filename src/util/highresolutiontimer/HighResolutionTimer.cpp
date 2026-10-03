@@ -2,11 +2,7 @@
 
 HighResolutionTimer HighResolutionTimer::now()
 {
-#if BOOST_OS_WINDOWS
-	LARGE_INTEGER pc;
-	QueryPerformanceCounter(&pc);
-	return HighResolutionTimer(pc.QuadPart);
-#elif BOOST_OS_LINUX
+#if BOOST_OS_LINUX
     timespec pc;
     clock_gettime(CLOCK_MONOTONIC_RAW, &pc);
     uint64 nsec = (uint64)pc.tv_sec * (uint64)1000000000 + (uint64)pc.tv_nsec;
@@ -27,11 +23,7 @@ HRTick HighResolutionTimer::getFrequency()
 }
 
 uint64 HighResolutionTimer::m_freq = []() -> uint64 {
-#if BOOST_OS_WINDOWS
-	LARGE_INTEGER freq;
-	QueryPerformanceFrequency(&freq);
-	return (uint64)(freq.QuadPart);
-#elif BOOST_OS_MACOS
+#if BOOST_OS_MACOS
 	return 1000000000;
 #elif BOOST_OS_BSD
 	timespec pc;

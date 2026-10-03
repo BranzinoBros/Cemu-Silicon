@@ -172,11 +172,7 @@ bool memory_isAddressRangeAccessible(MPTR virtualAddress, uint32 size);
 #define MEMORY_SHAREDDATA_AREA_ADDR			(0xF8000000)
 #define MEMORY_SHAREDDATA_AREA_SIZE			(0x02000000) // 32MB
 
-#if BOOST_OS_WINDOWS
-#define CPU_swapEndianU64(_v) _byteswap_uint64((uint64)(_v))
-#define CPU_swapEndianU32(_v) _byteswap_ulong((uint32)(_v))
-#define CPU_swapEndianU16(_v) _byteswap_ushort((uint16)(_v))
-#elif BOOST_OS_LINUX
+#if BOOST_OS_LINUX
 #define CPU_swapEndianU64(_v) bswap_64((uint64)(_v))
 #define CPU_swapEndianU32(_v) bswap_32((uint32)(_v))
 #define CPU_swapEndianU16(_v) bswap_16((uint16)(_v))

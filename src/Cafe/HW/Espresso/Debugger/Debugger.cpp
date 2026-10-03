@@ -9,10 +9,6 @@
 #include "OS/RPL/rpl.h"
 #include "util/helpers/helpers.h"
 
-#if BOOST_OS_WINDOWS
-#include <Windows.h>
-#endif
-
 void debugger_updateExecutionBreakpoint(uint32 address, bool forceRestore = false);
 
 DebuggerDispatcher g_debuggerDispatcher;
@@ -199,45 +195,7 @@ void debugger_updateMemoryBreakpoint(DebuggerBreakpoint* bp)
 {
 	std::vector<std::thread::native_handle_type> schedulerThreadHandles = coreinit::OSGetSchedulerThreads();
 
-#if BOOST_OS_WINDOWS
-	s_debuggerState.activeMemoryBreakpoint = bp;
-	for (auto& hThreadNH : schedulerThreadHandles)
-	{
-		HANDLE hThread = (HANDLE)hThreadNH;
-		CONTEXT ctx{};
-		ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS;
-		SuspendThread(hThread);
-		GetThreadContext(hThread, &ctx);
-		if (s_debuggerState.activeMemoryBreakpoint)
-		{
-			ctx.Dr0 = (DWORD64)memory_getPointerFromVirtualOffset(bp->address);
-			ctx.Dr1 = (DWORD64)memory_getPointerFromVirtualOffset(bp->address);
-			// breakpoint 0
-			SetBits(ctx.Dr7, 0, 1, 1);  // breakpoint #0 enabled: true
-			SetBits(ctx.Dr7, 16, 2, 1); // breakpoint #0 condition: 1 (write)
-			SetBits(ctx.Dr7, 18, 2, 3); // breakpoint #0 length: 3 (4 bytes)
-			// breakpoint 1
-			SetBits(ctx.Dr7, 2, 1, 1);  // breakpoint #1 enabled: true
-			SetBits(ctx.Dr7, 20, 2, 3); // breakpoint #1 condition: 3 (read & write)
-			SetBits(ctx.Dr7, 22, 2, 3); // breakpoint #1 length: 3 (4 bytes)
-		}
-		else
-		{
-			// breakpoint 0
-			SetBits(ctx.Dr7, 0, 1, 0);  // breakpoint #0 enabled: false
-			SetBits(ctx.Dr7, 16, 2, 0); // breakpoint #0 condition: 1 (write)
-			SetBits(ctx.Dr7, 18, 2, 0); // breakpoint #0 length: 3 (4 bytes)
-			// breakpoint 1
-			SetBits(ctx.Dr7, 2, 1, 0);  // breakpoint #1 enabled: false
-			SetBits(ctx.Dr7, 20, 2, 0); // breakpoint #1 condition: 3 (read & write)
-			SetBits(ctx.Dr7, 22, 2, 0); // breakpoint #1 length: 3 (4 bytes)
-		}
-		SetThreadContext(hThread, &ctx);
-		ResumeThread(hThread);
-	}
-	#else
 	cemuLog_log(LogType::Force, "Debugger breakpoints are not supported");
-	#endif
 }
 
 void debugger_handleSingleStepException(uint64 dr6)

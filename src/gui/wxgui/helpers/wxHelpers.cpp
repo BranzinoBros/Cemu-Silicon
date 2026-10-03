@@ -47,41 +47,13 @@ void update_slider_text(wxCommandEvent& event, const wxFormatString& format /*= 
 
 uint32 fix_raw_keycode(uint32 keycode, uint32 raw_flags)
 {
-#if BOOST_OS_WINDOWS
-	const auto flags = (HIWORD(raw_flags) & 0xFFF);
-	if(keycode == VK_SHIFT)
-	{
-		if(flags == 0x2A)
-			return 160;
-		else if (flags == 0x36)
-			return 161;
-	}
-	else if (keycode == VK_CONTROL)
-	{
-		if (flags == 0x1d)
-			return 162;
-		else if (flags == 0x11d)
-			return 163;
-	}
-	else if (keycode == VK_MENU)
-	{
-		if ((flags & 0xFF) == 0x38)
-			return 164;
-		else if ((flags & 0xFF) == 0x38)
-			return 165;
-	}
-#endif
-
 	return keycode;
 }
 
 WindowSystem::WindowHandleInfo initHandleContextFromWxWidgetsWindow(wxWindow* wxw)
 {
 	WindowSystem::WindowHandleInfo handleInfo;
-#if BOOST_OS_WINDOWS
-	handleInfo.backend = WindowSystem::WindowHandleInfo::Backend::Windows;
-	handleInfo.surface = reinterpret_cast<void*>(wxw->GetHWND());
-#elif BOOST_OS_LINUX || BOOST_OS_BSD
+#if BOOST_OS_LINUX || BOOST_OS_BSD
 	GtkWidget* gtkWidget = (GtkWidget*)wxw->GetHandle(); // returns GtkWidget
 	gtk_widget_realize(gtkWidget);
 	GdkWindow* gdkWindow = gtk_widget_get_window(gtkWidget);

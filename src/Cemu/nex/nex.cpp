@@ -5,11 +5,7 @@
 #include "util/crypto/md5.h"
 
 // for inet_pton:
-#if BOOST_OS_WINDOWS
-#include <WS2tcpip.h>
-#else
 #include <arpa/inet.h>
-#endif
 
 uint32 _currentCallId = 1;
 

@@ -8,10 +8,6 @@
 #include "Cafe/HW/Latte/Core/LatteQueryObject.h"
 #include "Cafe/HW/Latte/Renderer/RendererOuputShader.h"
 
-#if BOOST_OS_WINDOWS
-#include "util/DXGIWrapper/DXGIWrapper.h"
-#endif
-
 // imgui forward declarations
 struct ImFontAtlas;
 struct ImGuiContext;
@@ -196,10 +192,6 @@ protected:
 	ImFontAtlas* imguiFontAtlas{};
 	ImGuiContext* imguiTVContext{};
 	ImGuiContext* imguiPadContext{};
-
-#if BOOST_OS_WINDOWS
-	std::unique_ptr<DXGIWrapper> m_dxgi_wrapper{};
-#endif
 };
 
 extern std::unique_ptr<Renderer> g_renderer;

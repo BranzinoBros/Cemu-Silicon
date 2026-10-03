@@ -49,12 +49,6 @@ bool TestWriteAccess(const fs::path& p);
 
 fs::path MakeRelativePath(const fs::path& base, const fs::path& path);
 
-#ifdef HAS_DIRECTINPUT
-bool GUIDFromString(const char* string, GUID& guid);
-std::string StringFromGUID(const GUID& guid);
-std::wstring WStringFromGUID(const GUID& guid);
-#endif
-
 std::vector<std::string_view> TokenizeView(std::string_view string, char delimiter);
 std::vector<std::string> Tokenize(std::string_view string, char delimiter);
 
@@ -243,12 +237,5 @@ static bool IsValidFilename(std::string_view sv)
 	}
 	return true;
 }
-
-// MAJOR; MINOR
-std::pair<DWORD, DWORD> GetWindowsVersion();
-bool IsWindows81OrGreater();
-bool IsWindows10OrGreater();
-
-fs::path GetParentProcess();
 
 std::optional<std::vector<uint8>> zlibDecompress(const std::vector<uint8>& compressed, size_t sizeHint = 32*1024);

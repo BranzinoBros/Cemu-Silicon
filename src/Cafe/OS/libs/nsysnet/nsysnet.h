@@ -3,13 +3,9 @@
 #include <vector>
 #include "Cafe/OS/RPL/COSModule.h"
 
-#if BOOST_OS_WINDOWS
-#include <WinSock2.h>
-#else
 #include <sys/socket.h>
 #define SOCKET int
 #define closesocket close
-#endif
 
 typedef signed int WUSOCKET;
 

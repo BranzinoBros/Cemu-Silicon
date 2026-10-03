@@ -150,31 +150,7 @@ namespace coreinit
 GDBServer::AccessBreakpoint::AccessBreakpoint(MPTR address, AccessPointType type)
 	: m_address(address), m_type(type)
 {
-#if defined(ARCH_X86_64) && BOOST_OS_WINDOWS
-	for (auto& hThreadNH : coreinit::OSGetSchedulerThreads())
-	{
-		HANDLE hThread = (HANDLE)hThreadNH;
-		CONTEXT ctx{};
-		ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS;
-		SuspendThread(hThread);
-		GetThreadContext(hThread, &ctx);
-
-		// use BP 2/3 for gdb stub since cemu's internal debugger uses BP 0/1 already
-		ctx.Dr2 = (DWORD64)memory_getPointerFromVirtualOffset(address);
-		ctx.Dr3 = (DWORD64)memory_getPointerFromVirtualOffset(address);
-		// breakpoint 2
-		SetBits(ctx.Dr7, 4, 1, 1);	// breakpoint #3 enabled: true
-		SetBits(ctx.Dr7, 24, 2, 1); // breakpoint #3 condition: 1 (write)
-		SetBits(ctx.Dr7, 26, 2, 3); // breakpoint #3 length: 3 (4 bytes)
-		// breakpoint 3
-		SetBits(ctx.Dr7, 6, 1, 1);	// breakpoint #4 enabled: true
-		SetBits(ctx.Dr7, 28, 2, 3); // breakpoint #4 condition: 3 (read & write)
-		SetBits(ctx.Dr7, 30, 2, 3); // breakpoint #4 length: 3 (4 bytes)
-
-		SetThreadContext(hThread, &ctx);
-		ResumeThread(hThread);
-	}
-#elif defined(ARCH_X86_64) && BOOST_OS_LINUX
+#if defined(ARCH_X86_64) && BOOST_OS_LINUX
 	// linux doesn't let us attach to threads which are in the same thread group as our current thread
 	// we have to create a child process which then modifies the debug registers and quits
 	pid_t child = fork();
@@ -229,30 +205,7 @@ GDBServer::AccessBreakpoint::AccessBreakpoint(MPTR address, AccessPointType type
 
 GDBServer::AccessBreakpoint::~AccessBreakpoint()
 {
-#if defined(ARCH_X86_64) && BOOST_OS_WINDOWS
-	for (auto& hThreadNH : coreinit::OSGetSchedulerThreads())
-	{
-		HANDLE hThread = (HANDLE)hThreadNH;
-		CONTEXT ctx{};
-		ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS;
-		SuspendThread(hThread);
-		GetThreadContext(hThread, &ctx);
-
-		// reset BP 2/3 to zero
-		ctx.Dr2 = (DWORD64)0;
-		ctx.Dr3 = (DWORD64)0;
-		// breakpoint 2
-		SetBits(ctx.Dr7, 4, 1, 0);
-		SetBits(ctx.Dr7, 24, 2, 0);
-		SetBits(ctx.Dr7, 26, 2, 0);
-		// breakpoint 3
-		SetBits(ctx.Dr7, 6, 1, 0);
-		SetBits(ctx.Dr7, 28, 2, 0);
-		SetBits(ctx.Dr7, 30, 2, 0);
-		SetThreadContext(hThread, &ctx);
-		ResumeThread(hThread);
-	}
-#elif defined(ARCH_X86_64) && BOOST_OS_LINUX
+#if defined(ARCH_X86_64) && BOOST_OS_LINUX
 	// linux doesn't let us attach to threads which are in the same thread group as our current thread
 	// we have to create a child process which then modifies the debug registers and quits
 	pid_t child = fork();

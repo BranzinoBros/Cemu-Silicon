@@ -225,10 +225,6 @@ std::unique_ptr<GDBServer> g_gdbstub;
 GDBServer::GDBServer(uint16 port)
 	: m_port(port)
 {
-#if BOOST_OS_WINDOWS
-	WSADATA wsa;
-	WSAStartup(MAKEWORD(2, 2), &wsa);
-#endif
 }
 
 GDBServer::~GDBServer()
@@ -244,9 +240,6 @@ GDBServer::~GDBServer()
 	{
 		closesocket(m_server_socket);
 	}
-#if BOOST_OS_WINDOWS
-	WSACleanup();
-#endif
 
 	m_stopRequested = false;
 	m_thread.join();

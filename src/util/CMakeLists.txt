@@ -15,7 +15,6 @@ add_library(CemuUtil
   crypto/crc32.h
   crypto/md5.cpp
   crypto/md5.h
-  DXGIWrapper/DXGIWrapper.h
   EventService.h
   Fiber/Fiber.h
   helpers/ClassWrapper.h

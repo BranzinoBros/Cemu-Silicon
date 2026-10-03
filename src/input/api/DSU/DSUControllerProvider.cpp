@@ -1,10 +1,7 @@
 #include "input/api/DSU/DSUControllerProvider.h"
 #include "input/api/DSU/DSUController.h"
 
-#if BOOST_OS_WINDOWS
-#include <boost/asio/detail/socket_option.hpp>
-#include <winsock2.h>
-#elif BOOST_OS_LINUX || BOOST_OS_MACOS
+#if BOOST_OS_LINUX || BOOST_OS_MACOS
 #include <sys/time.h>
 #include <sys/socket.h>
 #endif

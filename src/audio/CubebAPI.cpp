@@ -1,13 +1,5 @@
 #include "CubebAPI.h"
 
-#if BOOST_OS_WINDOWS
-#include <combaseapi.h>
-#include <mmreg.h>
-#include <mmsystem.h>
-#pragma comment(lib, "Avrt.lib")
-#pragma comment(lib, "ksuser.lib")
-#endif
-
 
 static void state_cb(cubeb_stream* stream, void* user, cubeb_state state)
 {

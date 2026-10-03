@@ -1174,11 +1174,7 @@ void OpenGLRenderer::draw_init()
 	glGenBuffers(1, &indexState.glIndexCacheBuffer);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexState.glIndexCacheBuffer);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, GPU7_INDEX_BUFFER_CACHE_SIZE_DEPR, NULL, GL_DYNAMIC_DRAW);
-#if BOOST_OS_WINDOWS
-	indexState.mappedIndexBuffer = (uint8*)_aligned_malloc(GPU7_INDEX_BUFFER_CACHE_SIZE_DEPR, 256);
-#else
 	indexState.mappedIndexBuffer = (uint8*)aligned_alloc(256, GPU7_INDEX_BUFFER_CACHE_SIZE_DEPR);
-#endif
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 	indexState.indexRingBuffer = LatteRingBuffer_create(indexState.mappedIndexBuffer, GPU7_INDEX_BUFFER_CACHE_SIZE_DEPR);
 	indexState.tempIndexStorage = (uint8*)malloc(1024 * 1024 * 8);

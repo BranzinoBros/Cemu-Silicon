@@ -374,11 +374,7 @@ void cemu_initForGame()
 	time_t theTime = (time(NULL) - 946684800);
 	{
 		tm* lt = localtime(&theTime);
-#if BOOST_OS_WINDOWS
-		theTime = _mkgmtime(lt);
-#else
 		theTime = timegm(lt);
-#endif
 	}
 	ppcCyclesSince2000 = theTime * (uint64)ESPRESSO_CORE_CLOCK;
 	ppcCyclesSince2000TimerClock = ppcCyclesSince2000 / 20ULL;
@@ -450,33 +446,12 @@ namespace CafeSystem
 	GameInfo2 sGameInfo_ForegroundTitle;
 
 
-	static void _CheckForWine()
-	{
-		#if BOOST_OS_WINDOWS
-		const HMODULE hmodule = GetModuleHandleA("ntdll.dll");
-		if (!hmodule)
-			return;
-
-		const auto pwine_get_version = (const char*(__cdecl*)())GetProcAddress(hmodule, "wine_get_version");
-		if (pwine_get_version)
-		{
-			cemuLog_log(LogType::Force, "Wine version: {}", pwine_get_version());
-		}
-		#endif
-	}
-
 	void logCPUAndMemoryInfo()
 	{
 		std::string cpuName = g_CPUFeatures.GetCPUName();
 		if (!cpuName.empty())
 			cemuLog_log(LogType::Force, "CPU: {}", cpuName);
-		#if BOOST_OS_WINDOWS
-		MEMORYSTATUSEX statex;
-		statex.dwLength = sizeof(statex);
-		GlobalMemoryStatusEx(&statex);
-		uint32 memoryInMB = (uint32)(statex.ullTotalPhys / 1024LL / 1024LL);
-		cemuLog_log(LogType::Force, "RAM: {}MB", memoryInMB);
-		#elif BOOST_OS_LINUX
+		#if BOOST_OS_LINUX
 		struct sysinfo info {};
 		sysinfo(&info);
 		cemuLog_log(LogType::Force, "RAM: {}MB", ((static_cast<uint64_t>(info.totalram) * info.mem_unit) / 1024LL / 1024LL));
@@ -495,60 +470,11 @@ namespace CafeSystem
 		#endif
 	}
 
-	#if BOOST_OS_WINDOWS
-	std::string GetWindowsNamedVersion(uint32& buildNumber)
-	{
-		char productName[256];
-		char buildNumberStr[32];
-		char featureVersion[32];
-		HKEY hKey;
-		DWORD dwType = REG_SZ;
-		DWORD dwSize = sizeof(productName);
-		buildNumber = 0;
-		featureVersion[0] = '\0';
-		if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion", 0, KEY_QUERY_VALUE, &hKey) == ERROR_SUCCESS)
-		{
-			if (RegQueryValueExA(hKey, "ProductName", NULL, &dwType, (LPBYTE)productName, &dwSize) != ERROR_SUCCESS)
-				strcpy(productName, "Windows");
-			dwType = REG_SZ;
-			dwSize = sizeof(buildNumberStr);
-			if (RegQueryValueExA(hKey, "CurrentBuildNumber", NULL, &dwType, (LPBYTE)buildNumberStr, &dwSize) == ERROR_SUCCESS)
-				buildNumber = (uint32)atoi(buildNumberStr);
-			dwType = REG_SZ;
-			dwSize = sizeof(featureVersion);
-			if (RegQueryValueExA(hKey, "DisplayVersion", NULL, &dwType, (LPBYTE)featureVersion, &dwSize) != ERROR_SUCCESS)
-			{
-				dwType = REG_SZ;
-				dwSize = sizeof(featureVersion);
-				if (RegQueryValueExA(hKey, "ReleaseId", NULL, &dwType, (LPBYTE)featureVersion, &dwSize) != ERROR_SUCCESS)
-					featureVersion[0] = '\0';
-			}
-			RegCloseKey(hKey);
-		}
-		std::string result(productName);
-		// ProductName still reads as "Windows 10" on Windows 11. Find and replace with "Windows 11" based on build number.
-		if (buildNumber >= 22000)
-		{
-			size_t pos = result.find("Windows 10");
-			if (pos != std::string::npos)
-				result.replace(pos, 10, "Windows 11");
-		}
-		if (featureVersion[0] != '\0')
-			result += fmt::format(" {}", featureVersion);
-		return result;
-	}
-	#endif
-
 	void logPlatformInfo()
 	{
 		std::string buffer;
 		const char* platform = NULL;
-		#if BOOST_OS_WINDOWS
-		uint32 buildNumber;
-		std::string windowsVersionName = GetWindowsNamedVersion(buildNumber);
-		buffer = fmt::format("{} (Build {})", windowsVersionName, buildNumber);
-		platform = buffer.c_str();
-		#elif BOOST_OS_LINUX
+		#if BOOST_OS_LINUX
 		if (getenv ("APPIMAGE"))
 			platform = "Linux (AppImage)";
 		else if (getenv ("SNAP"))
@@ -617,7 +543,6 @@ namespace CafeSystem
 		PPCCore_init();
 		RPLLoader_InitState();
 		cemuLog_log(LogType::Force, "mlc01 path: {}", _pathToUtf8(ActiveSettings::GetMlcPath()));
-		_CheckForWine();
 		// CPU and RAM info
 		logCPUAndMemoryInfo();
 		logPlatformInfo();

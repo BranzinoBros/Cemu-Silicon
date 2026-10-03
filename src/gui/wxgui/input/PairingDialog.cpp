@@ -1,9 +1,6 @@
 #include "wxgui/wxgui.h"
 #include "PairingDialog.h"
 
-#if BOOST_OS_WINDOWS
-#include <bluetoothapis.h>
-#endif
 #if BOOST_OS_LINUX
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
@@ -128,104 +125,7 @@ void PairingDialog::OnGaugeUpdate(wxCommandEvent& event)
 	}
 }
 
-#if BOOST_OS_WINDOWS
-void PairingDialog::WorkerThread()
-{
-	const std::wstring wiimoteName = L"Nintendo RVL-CNT-01";
-	const std::wstring wiiUProControllerName = L"Nintendo RVL-CNT-01-UC";
-
-	const GUID bthHidGuid = {0x00001124, 0x0000, 0x1000, {0x80, 0x00, 0x00, 0x80, 0x5F, 0x9B, 0x34, 0xFB}};
-
-	const BLUETOOTH_FIND_RADIO_PARAMS radioFindParams =
-		{
-			.dwSize = sizeof(BLUETOOTH_FIND_RADIO_PARAMS)};
-
-	HANDLE radio = INVALID_HANDLE_VALUE;
-	HBLUETOOTH_RADIO_FIND radioFind = BluetoothFindFirstRadio(&radioFindParams, &radio);
-	if (radioFind == nullptr)
-	{
-		UpdateCallback(PairingState::NoBluetoothAvailable);
-		return;
-	}
-
-	BluetoothFindRadioClose(radioFind);
-
-	BLUETOOTH_RADIO_INFO radioInfo =
-		{
-			.dwSize = sizeof(BLUETOOTH_RADIO_INFO)};
-
-	DWORD result = BluetoothGetRadioInfo(radio, &radioInfo);
-	if (result != ERROR_SUCCESS)
-	{
-		UpdateCallback(PairingState::NoBluetoothAvailable);
-		return;
-	}
-
-	const BLUETOOTH_DEVICE_SEARCH_PARAMS searchParams =
-		{
-			.dwSize = sizeof(BLUETOOTH_DEVICE_SEARCH_PARAMS),
-
-			.fReturnAuthenticated = FALSE,
-			.fReturnRemembered = FALSE,
-			.fReturnUnknown = TRUE,
-			.fReturnConnected = FALSE,
-
-			.fIssueInquiry = TRUE,
-			.cTimeoutMultiplier = 5,
-
-			.hRadio = radio};
-
-	BLUETOOTH_DEVICE_INFO info =
-		{
-			.dwSize = sizeof(BLUETOOTH_DEVICE_INFO)};
-
-	while (!m_threadShouldQuit)
-	{
-		HBLUETOOTH_DEVICE_FIND deviceFind = BluetoothFindFirstDevice(&searchParams, &info);
-		if (deviceFind == nullptr)
-		{
-			UpdateCallback(PairingState::SearchFailed);
-			return;
-		}
-
-		while (!m_threadShouldQuit)
-		{
-			if (info.szName == wiimoteName || info.szName == wiiUProControllerName)
-			{
-				BluetoothFindDeviceClose(deviceFind);
-
-				UpdateCallback(PairingState::Pairing);
-
-				wchar_t passwd[6] = {radioInfo.address.rgBytes[0], radioInfo.address.rgBytes[1], radioInfo.address.rgBytes[2], radioInfo.address.rgBytes[3], radioInfo.address.rgBytes[4], radioInfo.address.rgBytes[5]};
-				DWORD bthResult = BluetoothAuthenticateDevice(nullptr, radio, &info, passwd, 6);
-				if (bthResult != ERROR_SUCCESS)
-				{
-					UpdateCallback(PairingState::PairingFailed);
-					return;
-				}
-
-				bthResult = BluetoothSetServiceState(radio, &info, &bthHidGuid, BLUETOOTH_SERVICE_ENABLE);
-				if (bthResult != ERROR_SUCCESS)
-				{
-					UpdateCallback(PairingState::PairingFailed);
-					return;
-				}
-
-				UpdateCallback(PairingState::Finished);
-				return;
-			}
-
-			BOOL nextDevResult = BluetoothFindNextDevice(deviceFind, &info);
-			if (nextDevResult == FALSE)
-			{
-				break;
-			}
-		}
-
-		BluetoothFindDeviceClose(deviceFind);
-	}
-}
-#elif defined(HAS_BLUEZ)
+#if defined(HAS_BLUEZ)
 void PairingDialog::WorkerThread()
 {
 	constexpr static uint8_t LIAC_LAP[] = {0x00, 0x8b, 0x9e};

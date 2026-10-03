@@ -18,8 +18,6 @@
 #ifdef __arm64__
 #if defined(__clang__)
 #include <arm_acle.h>
-#elif defined(_MSC_VER)
-#include <intrin.h>
 #endif
 #endif
 
@@ -34,8 +32,6 @@ void enableFlushDenormalsToZero()
 	__arm_wsr64("fpcr", __arm_rsr64("fpcr") | (1 << 24));
 #elif defined(__GNUC__)
 	__builtin_aarch64_set_fpcr(__builtin_aarch64_get_fpcr() | (1 << 24));
-#elif defined(_MSC_VER)
-	_WriteStatusReg(ARM64_FPCR, _ReadStatusReg(ARM64_FPCR) | (1 << 24));
 #endif
 #endif
 }

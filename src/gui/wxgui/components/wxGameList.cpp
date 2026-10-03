@@ -37,18 +37,6 @@
 
 #include "Cafe/IOSU/PDM/iosu_pdm.h" // for last played and play time
 
-#if BOOST_OS_WINDOWS
-// for shortcut creation
-#include <windows.h>
-#include <winnls.h>
-#include <shobjidl.h>
-#include <objbase.h>
-#include <objidl.h>
-#include <shlguid.h>
-#include <shlobj.h>
-#include <wrl/client.h>
-#endif
-
 // public events
 wxDEFINE_EVENT(wxEVT_OPEN_SETTINGS, wxCommandEvent);
 wxDEFINE_EVENT(wxEVT_GAMELIST_BEGIN_UPDATE, wxCommandEvent);
@@ -1624,86 +1612,5 @@ void wxGameList::CreateShortcut(GameInfo2& gameInfo)
 
 	// Remove temp file
 	fs::remove(*iconPath);
-}
-#elif BOOST_OS_WINDOWS
-void wxGameList::CreateShortcut(GameInfo2& gameInfo)
-{
-	const auto titleId = gameInfo.GetBaseTitleId();
-	const auto titleName = wxString::FromUTF8(gameInfo.GetTitleName());
-	auto exePath = ActiveSettings::GetExecutablePath();
-
-	// Get '%APPDATA%\Microsoft\Windows\Start Menu\Programs' path
-	PWSTR userShortcutFolder;
-	SHGetKnownFolderPath(FOLDERID_Programs, 0, NULL, &userShortcutFolder);
-	const wxString shortcutName = wxString::Format("%s.lnk", titleName);
-	wxFileDialog shortcutDialog(this, _("Choose shortcut location"), userShortcutFolder, shortcutName,
-								"Shortcut (*.lnk)|*.lnk", wxFD_SAVE | wxFD_CHANGE_DIR | wxFD_OVERWRITE_PROMPT);
-
-	CoTaskMemFree(userShortcutFolder);
-
-	const auto result = shortcutDialog.ShowModal();
-	if (result == wxID_CANCEL)
-		return;
-	const auto outputPath = shortcutDialog.GetPath();
-
-	std::optional<fs::path> icon_path = std::nullopt;
-	{
-		int iconIdx;
-		int smallIconIdx;
-		if (!QueryIconForTitle(titleId, iconIdx, smallIconIdx))
-		{
-			cemuLog_log(LogType::Force, "Icon hasn't loaded");
-			return;
-		}
-		const auto icon = m_image_list_data.GetIcon(iconIdx);
-		const auto folder = ActiveSettings::GetUserDataPath("icons");
-		if (!fs::exists(folder) && !fs::create_directories(folder))
-		{
-			cemuLog_log(LogType::Force, "Failed to create icon directory");
-			return;
-		}
-		wxBitmap bitmap{icon};
-
-		icon_path = folder / fmt::format("{:016x}.ico", titleId);
-		auto stream = wxFileOutputStream(icon_path->wstring());
-		auto image = bitmap.ConvertToImage();
-		wxICOHandler icohandler{};
-		if (!icohandler.SaveFile(&image, stream, false))
-		{
-			icon_path = std::nullopt;
-			cemuLog_log(LogType::Force, "Icon failed to save");
-		}
-	}
-
-	Microsoft::WRL::ComPtr<IShellLinkW> shellLink;
-	HRESULT hres = CoCreateInstance(__uuidof(ShellLink), nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&shellLink));
-	if (SUCCEEDED(hres))
-	{
-		const auto description = wxString::Format("Play %s on Cemu", titleName);
-		const auto args = wxString::Format("-t %016llx", titleId);
-
-		shellLink->SetPath(exePath.wstring().c_str());
-		shellLink->SetDescription(description.wc_str());
-		shellLink->SetArguments(args.wc_str());
-		shellLink->SetWorkingDirectory(exePath.parent_path().wstring().c_str());
-
-		if (icon_path)
-			shellLink->SetIconLocation(icon_path->wstring().c_str(), 0);
-		else
-			shellLink->SetIconLocation(exePath.wstring().c_str(), 0);
-
-		Microsoft::WRL::ComPtr<IPersistFile> shellLinkFile;
-		// save the shortcut
-		hres = shellLink.As(&shellLinkFile);
-		if (SUCCEEDED(hres))
-		{
-			hres = shellLinkFile->Save(outputPath.wc_str(), TRUE);
-		}
-	}
-	if (FAILED(hres))
-	{
-		auto errorMsg = formatWxString(_("Failed to save shortcut to {}"), outputPath);
-		wxMessageBox(errorMsg, _("Error"), wxOK | wxCENTRE | wxICON_ERROR);
-	}
 }
 #endif

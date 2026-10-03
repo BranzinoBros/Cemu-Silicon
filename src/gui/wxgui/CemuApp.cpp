@@ -69,60 +69,6 @@ void unused_translation_dummy()
 	void(_("unknown"));
 }
 
-#if BOOST_OS_WINDOWS
-#include <shlobj.h>
-fs::path GetAppDataRoamingPath()
-{
-	PWSTR path = nullptr;
-	HRESULT result = SHGetKnownFolderPath(FOLDERID_RoamingAppData, 0, nullptr, &path);
-	if (FAILED(result))
-	{
-		CoTaskMemFree(path);
-		return {};
-	}
-	std::string appDataPath = boost::nowide::narrow(path);
-	CoTaskMemFree(path);
-	return _utf8ToPath(appDataPath);
-}
-#endif
-
-#if BOOST_OS_WINDOWS
-void CemuApp::DeterminePaths(std::set<fs::path>& failedWriteAccess) // for Windows
-{
-	std::error_code ec;
-	bool isPortable = false;
-	fs::path user_data_path, config_path, cache_path, data_path;
-	auto standardPaths = wxStandardPaths::Get();
-	fs::path exePath(wxHelper::MakeFSPath(standardPaths.GetExecutablePath()));
-	fs::path portablePath = exePath.parent_path() / "portable";
-	data_path = exePath.parent_path(); // the data path is always the same as the exe path
-#ifdef CEMU_ALLOW_PORTABLE
-	if (fs::is_directory(portablePath, ec))
-	{
-		isPortable = true;
-		user_data_path = config_path = cache_path = portablePath;
-	}
-	else
-#endif
-	{
-		fs::path roamingPath = GetAppDataRoamingPath() / "Cemu";
-		user_data_path = config_path = cache_path = roamingPath;
-	}
-	// on Windows Cemu used to be portable by default prior to 2.0-89
-	// to remain backwards compatible with old installations we check for settings.xml in the Cemu directory
-	// if it exists, we use the exe path as the portable directory
-	if(!isPortable) // lower priority than portable directory
-	{
-		if (fs::exists(exePath.parent_path() / "settings.xml", ec))
-		{
-			isPortable = true;
-			user_data_path = config_path = cache_path = exePath.parent_path();
-		}
-	}
-	ActiveSettings::SetPaths(isPortable, exePath, user_data_path, config_path, cache_path, data_path, failedWriteAccess);
-}
-#endif
-
 #if BOOST_OS_LINUX || BOOST_OS_BSD
 void CemuApp::DeterminePaths(std::set<fs::path>& failedWriteAccess) // for Linux
 {
@@ -291,21 +237,6 @@ bool CemuApp::OnInit()
 	}
 
 	SetTranslationCallback(TranslationCallback);
-#if __WXMSW__
-	auto& wxGuiConfig = GetWxGUIConfig();
-	if (wxGuiConfig.msw_theme.GetValue() == static_cast<int>(MSWThemeOption::kAuto))
-	{
-		MSWEnableDarkMode(DarkMode_Auto);
-	}
-	else if (wxGuiConfig.msw_theme.GetValue() == static_cast<int>(MSWThemeOption::kDark))
-	{
-		MSWEnableDarkMode(DarkMode_Always);
-	}
-
-	// extend tooltip duration to the maximum possible value
-	wxToolTip::SetDelay(-1);
-	wxToolTip::SetAutoPop(MAKELPARAM(std::numeric_limits<short>::max(),0));
-#endif
 
 	for (auto&& path : failedWriteAccess)
 	{
@@ -355,15 +286,6 @@ bool CemuApp::OnInit()
 	wxTheColourDatabase->AddColour("ERROR", wxColour(0xCC, 0, 0));
 	wxTheColourDatabase->AddColour("SUCCESS", wxColour(0, 0xbb, 0));
 
-#if BOOST_OS_WINDOWS
-	const auto parent_path = GetParentProcess();
-	if(parent_path.has_filename())
-	{
-		const auto filename = parent_path.filename().generic_string();
-		if (boost::icontains(filename, "WiiU_USB_Helper"))
-			__fastfail(0);
-	}
-#endif
 	#ifdef ENABLE_VULKAN
 	InitializeGlobalVulkan();
 	#endif
@@ -412,14 +334,7 @@ int CemuApp::OnExit()
 	if (m_restartExecutable.has_value() && !m_restartExecutable->empty() && fs::exists(*m_restartExecutable))
 	{
 		fs::path restartPath = *m_restartExecutable;
-#if BOOST_OS_WINDOWS
-		PROCESS_INFORMATION pi{};
-		STARTUPINFOW si{};
-		si.cb = sizeof(si);
-		std::wstring cmdline;
-		cmdline = L"\"" + boost::nowide::widen(_pathToUtf8(restartPath)) + L"\"";
-		CreateProcessW(nullptr, (wchar_t*)cmdline.c_str(), nullptr, nullptr, FALSE, 0, nullptr, nullptr, &si, &pi);
-#elif BOOST_OS_LINUX
+#if BOOST_OS_LINUX
 		std::string appPath = _pathToUtf8(restartPath);
 		execlp(appPath.c_str(), appPath.c_str(), (char *)NULL);
 #elif BOOST_OS_MACOS
@@ -427,11 +342,7 @@ int CemuApp::OnExit()
 		execlp(appPath.c_str(), appPath.c_str(), (char *)NULL);
 #endif
 	}
-#if BOOST_OS_WINDOWS
-	ExitProcess(retValue);
-#else
 	_Exit(retValue);
-#endif
 }
 
 #if BOOST_OS_MACOS
@@ -443,10 +354,6 @@ void CemuApp::OnSDLEventPumpTimer(wxTimerEvent& event)
 }
 #endif
 
-#if BOOST_OS_WINDOWS
-void DumpThreadStackTrace();
-#endif
-
 void CemuApp::OnAssertFailure(const wxChar* file, int line, const wxChar* func, const wxChar* cond, const wxChar* msg)
 {
 	cemuLog_createLogFile(false);
@@ -455,9 +362,6 @@ void CemuApp::OnAssertFailure(const wxChar* file, int line, const wxChar* func, 
 	cemuLog_log(LogType::Force, "Func: {0} Cond: {1}", wxString(func).utf8_string(), wxString(cond).utf8_string());
 	cemuLog_log(LogType::Force, "Message: {}", wxString(msg).utf8_string());
 
-#if BOOST_OS_WINDOWS
-	DumpThreadStackTrace();
-#endif
 	cemu_assert_debug(false);
 }
 
@@ -649,12 +553,6 @@ void CemuApp::CreateDefaultCemuFiles()
 	catch (const std::exception& ex)
 	{
 		wxString errorMsg = formatWxString(_("Couldn't create a required cemu directory or file!\n\nError: {0}"), ex.what());
-
-#if BOOST_OS_WINDOWS
-		const DWORD lastError = GetLastError();
-		if (lastError != ERROR_SUCCESS)
-			errorMsg << fmt::format("\n\n{}", GetSystemErrorMessage(lastError));
-#endif
 
 		wxMessageBox(errorMsg, _("Error"), wxOK | wxCENTRE | wxICON_ERROR);
 		exit(0);

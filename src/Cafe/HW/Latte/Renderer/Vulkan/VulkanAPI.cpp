@@ -84,66 +84,6 @@ void VulkanBenchmarkPrintResults()
 #endif
 }
 
-#if BOOST_OS_WINDOWS
-
-bool InitializeGlobalVulkan()
-{
-	const auto hmodule = LoadLibraryA("vulkan-1.dll");
-
-	if(g_vulkan_available)
-		return true;
-
-	if (hmodule == nullptr)
-	{
-		cemuLog_log(LogType::Force, "Vulkan loader not available. Outdated graphics driver or Vulkan runtime not installed?");
-		return false;
-	}
-
-	#define VKFUNC_INIT
-	#include "Cafe/HW/Latte/Renderer/Vulkan/VulkanAPI.h"
-
-	if(!vkEnumerateInstanceVersion)
-	{
-		cemuLog_log(LogType::Force, "vkEnumerateInstanceVersion not available. Outdated graphics driver or Vulkan runtime?");
-		FreeLibrary(hmodule);
-		return false;
-	}
-	
-	g_vulkan_available = true;
-	return true;
-}
-
-bool InitializeInstanceVulkan(VkInstance instance)
-{
-	const auto hmodule = GetModuleHandleA("vulkan-1.dll");
-	if (hmodule == nullptr)
-		return false;
-
-	#define VKFUNC_INSTANCE_INIT
-	#include "Cafe/HW/Latte/Renderer/Vulkan/VulkanAPI.h"
-	
-	return true;
-}
-
-bool InitializeDeviceVulkan(VkDevice device)
-{
-	const auto hmodule = GetModuleHandleA("vulkan-1.dll");
-	if (hmodule == nullptr)
-		return false;
-
-	#define VKFUNC_DEVICE_INIT
-	#include "Cafe/HW/Latte/Renderer/Vulkan/VulkanAPI.h"
-
-#if VULKAN_API_CPU_BENCHMARK != 0
-	#define VKFUNC_DEFINE_CUSTOM(__func) __func = VkWrapperFuncGenTest(__func, #__func)
-	#include "Cafe/HW/Latte/Renderer/Vulkan/VulkanAPI.h"
-#endif
-
-	return true;
-}
-
-#else
-
 void* dlopen_vulkan_loader()
 {
 #if BOOST_OS_LINUX || BOOST_OS_BSD
@@ -211,4 +151,3 @@ bool InitializeDeviceVulkan(VkDevice device)
 	return true;
 }
 
-#endif

@@ -1080,12 +1080,6 @@ static ConcurrentQueue<PipelineCompiler*> s_pipelineCompileRequests;
 static void compilePipeline_thread(sint32 threadIndex)
 {
 	SetThreadName("compilePl");
-#ifdef _WIN32
-	// to avoid starving the main cpu and render threads the pipeline compile threads run at lower priority
-	// except for one thread which we always run at normal priority to prevent the opposite scenario where all compile threads are starved
-	if(threadIndex != 0)
-		SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
-#endif
 	while (!s_compileThreadsShutdownSignal)
 	{
 		PipelineCompiler* request = s_pipelineCompileRequests.pop();

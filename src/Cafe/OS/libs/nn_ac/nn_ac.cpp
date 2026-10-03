@@ -3,9 +3,7 @@
 #include "nn_ac.h"
 #include "Common/socket.h"
 
-#if BOOST_OS_WINDOWS
-#include <iphlpapi.h>
-#elif BOOST_OS_LINUX
+#if BOOST_OS_LINUX
 #include <ifaddrs.h>
 #include <net/if.h>
 #endif
@@ -27,64 +25,7 @@ void _GetLocalIPAndSubnetMaskFallback(uint32& localIp, uint32& subnetMask)
 	subnetMask = (255 << 24) | (255 << 16) | (255 << 8) | (0 << 0);
 }
 
-#if BOOST_OS_WINDOWS
-void _GetLocalIPAndSubnetMask(uint32& localIp, uint32& subnetMask)
-{
-	std::vector<IP_ADAPTER_ADDRESSES> buf_adapter_addresses;
-	buf_adapter_addresses.resize(32);
-	DWORD buf_size;
-	DWORD r;
-
-	for (uint32 i = 0; i < 6; i++) 
-	{
-		buf_size = (uint32)(buf_adapter_addresses.size() * sizeof(IP_ADAPTER_ADDRESSES));
-		r = GetAdaptersAddresses(AF_INET, GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER | GAA_FLAG_INCLUDE_GATEWAYS, nullptr, buf_adapter_addresses.data(), &buf_size);
-		if (r != ERROR_BUFFER_OVERFLOW)
-			break;
-		buf_adapter_addresses.resize(buf_adapter_addresses.size() * 2);
-	}
-	if (r != ERROR_SUCCESS)
-	{
-		cemuLog_log(LogType::Force, "Failed to acquire local IP and subnet mask");
-		_GetLocalIPAndSubnetMaskFallback(localIp, subnetMask);
-		return;
-	}
-	IP_ADAPTER_ADDRESSES* currentAddress = buf_adapter_addresses.data();
-	while (currentAddress)
-	{
-		if (currentAddress->OperStatus != IfOperStatusUp)
-		{
-			currentAddress = currentAddress->Next;
-			continue;
-		}
-		if (!currentAddress->FirstUnicastAddress || !currentAddress->FirstUnicastAddress->Address.lpSockaddr)
-		{
-			currentAddress = currentAddress->Next;
-			continue;
-		}
-		if (!currentAddress->FirstGatewayAddress)
-		{
-			currentAddress = currentAddress->Next;
-			continue;
-		}
-
-		SOCKADDR* sockAddr = currentAddress->FirstUnicastAddress->Address.lpSockaddr;
-		if (sockAddr->sa_family == AF_INET)
-		{
-			ULONG mask = 0;
-			if (ConvertLengthToIpv4Mask(currentAddress->FirstUnicastAddress->OnLinkPrefixLength, &mask) != NO_ERROR)
-				mask = 0;
-			sockaddr_in* inAddr = (sockaddr_in*)sockAddr;
-			localIp = _byteswap_ulong(inAddr->sin_addr.S_un.S_addr);
-			subnetMask = _byteswap_ulong(mask);
-			return;
-		}
-		currentAddress = currentAddress->Next;
-	}
-	cemuLog_logDebug(LogType::Force, "_GetLocalIPAndSubnetMask(): Failed to find network IP and subnet mask");
-	_GetLocalIPAndSubnetMaskFallback(localIp, subnetMask);
-}
-#elif BOOST_OS_LINUX
+#if BOOST_OS_LINUX
 void _GetLocalIPAndSubnetMask(uint32& localIp, uint32& subnetMask)
 {
 	struct ifaddrs *ifaddr;

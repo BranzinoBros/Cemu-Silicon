@@ -18,16 +18,12 @@ namespace shim
 }
 #endif
 
-#ifdef _WIN32
-#include <windows.h>
-#else
 #include <fcntl.h>
 #include <poll.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/un.h>
 #include <unistd.h>
-#endif
 
 enum RPCOpcode : uint32_t
 {
@@ -63,106 +59,6 @@ static std::string EscapeJSONString(std::string_view value)
 	}
 	return escaped;
 }
-
-#ifdef _WIN32
-class NamedPipeImpl
-{
-  public:
-	NamedPipeImpl()
-	{
-		m_readEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
-	}
-
-	~NamedPipeImpl()
-	{
-		CloseHandle(m_readEvent);
-		ClosePipe();
-	}
-
-	bool OpenPipe()
-	{
-		std::string fullPipeName = R"(\\.\pipe\discord-ipc-0)";
-		m_handle = CreateFileA(fullPipeName.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, nullptr);
-		if (m_handle == INVALID_HANDLE_VALUE)
-			return false;
-		return true;
-	}
-
-	void ClosePipe()
-	{
-		if (m_handle != INVALID_HANDLE_VALUE)
-		{
-			CloseHandle(m_handle);
-			m_handle = INVALID_HANDLE_VALUE;
-		}
-	}
-
-	bool IsOpen() const
-	{
-		return m_handle != INVALID_HANDLE_VALUE;
-	}
-
-	int Read(uint8_t* buffer, size_t maxSize, int timeoutMs)
-	{
-		if (m_handle == INVALID_HANDLE_VALUE || m_readEvent == nullptr)
-			return -1;
-		OVERLAPPED overlapped = {0};
-		overlapped.hEvent = m_readEvent;
-		ResetEvent(m_readEvent);
-		DWORD bytesRead = 0;
-		BOOL success = ReadFile(m_handle, buffer, static_cast<DWORD>(maxSize), nullptr, &overlapped);
-		if (!success && GetLastError() == ERROR_IO_PENDING)
-		{
-			DWORD waitResult = WaitForSingleObject(m_readEvent, timeoutMs);
-			if (waitResult == WAIT_TIMEOUT)
-			{
-				CancelIo(m_handle);
-				return 0;
-			}
-			else if (waitResult != WAIT_OBJECT_0) // error
-			{
-				ClosePipe();
-				return -1;
-			}
-			if (!GetOverlappedResult(m_handle, &overlapped, &bytesRead, FALSE))
-			{
-				ClosePipe();
-				return -1;
-			}
-		}
-		else if (!success)
-		{
-			ClosePipe();
-			return -1;
-		}
-		else
-		{
-			GetOverlappedResult(m_handle, &overlapped, &bytesRead, FALSE); // immediate completion
-		}
-		return static_cast<int>(bytesRead);
-	}
-
-	int Write(const uint8_t* buffer, size_t size)
-	{
-		if (m_handle == INVALID_HANDLE_VALUE)
-		{
-			return -1;
-		}
-		DWORD bytesWritten = 0;
-		if (!WriteFile(m_handle, buffer, static_cast<DWORD>(size), &bytesWritten, nullptr))
-		{
-			ClosePipe();
-			return -1;
-		}
-		return static_cast<int>(bytesWritten);
-	}
-
-  private:
-	HANDLE m_handle = INVALID_HANDLE_VALUE;
-	HANDLE m_readEvent;
-};
-
-#else
 
 class NamedPipeImpl // posix
 {
@@ -280,19 +176,10 @@ class NamedPipeImpl // posix
 	int m_fd = -1;
 };
 
-#endif
-
-#ifdef _WIN32
-int GetProcessId()
-{
-	return (int)GetCurrentProcessId();
-}
-#else
 int GetProcessId()
 {
 	return getpid();
 }
-#endif
 
 class NamedPipe : public NamedPipeImpl
 {

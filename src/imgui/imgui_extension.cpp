@@ -2,7 +2,6 @@
 #include "WindowSystem.h"
 #include "Cafe/HW/Latte/Renderer/Renderer.h"
 #include "resource/IconsFontAwesome5.h"
-#include "resource/resource.h"
 #ifdef ENABLE_OPENGL
 #include "imgui_impl_opengl3.h"
 #endif
@@ -47,10 +46,8 @@ void ImRotateEnd(float rad, ImVec2 center)
 uint8* extractCafeDefaultFont(sint32* size);
 sint32 g_font_size = 0;
 uint8* g_font_data = nullptr;
-#if !BOOST_OS_WINDOWS
 extern int const g_fontawesome_size;
 extern char const g_fontawesome_data[];
-#endif
 std::unordered_map<int, ImFont*> g_imgui_fonts;
 std::stack<int> g_font_requests;
 
@@ -82,23 +79,7 @@ void ImGui_PrecacheFonts()
 
 		static const ImWchar icon_ranges[] = { ICON_MIN_FA, ICON_MAX_FA, 0 };
 
-#if BOOST_OS_WINDOWS
-		const auto hinstance = GetModuleHandle(nullptr);
-		const HRSRC res = FindResource(hinstance, MAKEINTRESOURCE(IDR_FONTAWESOME), RT_RCDATA);
-		if (res)
-		{
-			const HGLOBAL mem = ::LoadResource(hinstance, res);
-			if (mem)
-			{
-				void* data = LockResource(mem);
-				const size_t len = SizeofResource(hinstance, res);
-
-				io.Fonts->AddFontFromMemoryTTF(data, (int)len, (float)size, &cfgmerge, icon_ranges);
-			}
-		}
-#else
 		io.Fonts->AddFontFromMemoryTTF((void*)g_fontawesome_data, (int)g_fontawesome_size, (float)size, &cfgmerge, icon_ranges);
-#endif
 
 		g_imgui_fonts[(int)size] = font;
 
@@ -131,11 +112,7 @@ void ImGui_UpdateWindowInformation(bool mainWindow)
 	ImGuiIO& io = ImGui::GetIO();
 	io.BackendFlags |= ImGuiBackendFlags_HasMouseCursors;
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
-#if BOOST_OS_WINDOWS
-	io.ImeWindowHandle = mainWindow ? windowInfo.window_main.surface : windowInfo.window_pad.surface;
-#else
 	io.ImeWindowHandle = nullptr;
-#endif
 
 	io.MousePos = ImVec2(-FLT_MAX, -FLT_MAX);
 

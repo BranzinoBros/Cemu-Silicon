@@ -1,10 +1,6 @@
 #ifndef _VULKAN_API_
 #define _VULKAN_API_
 
-#if BOOST_OS_WINDOWS
-#define VK_USE_PLATFORM_WIN32_KHR // todo - define in CMakeLists.txt
-#endif
-
 #include <vulkan/vulkan.h>
 
 bool InitializeGlobalVulkan();
@@ -24,11 +20,7 @@ extern bool g_vulkan_available;
 	#define VKFUNC_DEVICE(__FUNC__) NOEXPORT PFN_##__FUNC__ __FUNC__ = nullptr
 #else
 	#if defined(VKFUNC_INIT)
-		#if BOOST_OS_WINDOWS
-		#define VKFUNC(__FUNC__) __FUNC__ = (PFN_##__FUNC__)GetProcAddress(hmodule, #__FUNC__)
-		#else
 		#define VKFUNC(__FUNC__) __FUNC__ = (PFN_##__FUNC__)dlsym(vulkan_so, #__FUNC__)
-		#endif
 		#define VKFUNC_INSTANCE(__FUNC__)
 		#define VKFUNC_DEVICE(__FUNC__)
 	#elif defined(VKFUNC_INSTANCE_INIT)
@@ -136,10 +128,6 @@ VKFUNC_INSTANCE(vkCreateXcbSurfaceKHR);
 #ifdef HAS_WAYLAND
 VKFUNC_INSTANCE(vkCreateWaylandSurfaceKHR);
 #endif
-#endif
-
-#if BOOST_OS_WINDOWS
-VKFUNC_INSTANCE(vkCreateWin32SurfaceKHR);
 #endif
 
 #if BOOST_OS_MACOS

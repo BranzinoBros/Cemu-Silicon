@@ -172,10 +172,6 @@ static void setSCR(PPCInterpreter_t* hCPU, uint32 newValue)
 		//// todo - normally IOSU sets up some stuff here (probably)
 		
 		// for debugging purposes make lowest page read-only
-#ifdef _WIN32
-		DWORD oldProtect;
-		VirtualProtect(memory_base, 0x1000, PAGE_READONLY, &oldProtect);
-#endif
 	}
 	debug_printf("Set SCR to 0x%08x\n", newValue);
 	hCPU->global->sprGlobal.scr = newValue;

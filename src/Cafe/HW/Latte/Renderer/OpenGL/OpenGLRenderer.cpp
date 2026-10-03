@@ -129,16 +129,6 @@ OpenGLRenderer::OpenGLRenderer() : Renderer(RendererAPI::OpenGL)
 		glRendererState.uploadIndex = 0;
 	}
 
-#if BOOST_OS_WINDOWS
-	try
-	{
-		m_dxgi_wrapper = std::make_unique<DXGIWrapper>();
-	}
-	catch (const std::exception& ex)
-	{
-		cemuLog_log(LogType::Force, "Unable to create dxgi wrapper: {} (VRAM overlay stat won't be available)", ex.what());
-	}
-#endif
 }
 
 OpenGLRenderer::~OpenGLRenderer()
@@ -227,23 +217,7 @@ void OpenGLRenderer::DeleteFontTextures()
 
 typedef void(*GL_IMPORT)();
 
-#if BOOST_OS_WINDOWS
-GL_IMPORT _GetOpenGLFunction(HMODULE hLib, const char* name)
-{
-	GL_IMPORT r = (GL_IMPORT)wglGetProcAddress(name);
-	if (r == nullptr)
-		r = (GL_IMPORT)GetProcAddress(hLib, name);
-	return r;
-}
-
-void LoadOpenGLImports()
-{
-	HMODULE hLib = LoadLibraryA("opengl32.dll");
-#define GLFUNC(__type, __name)	__name = (__type)_GetOpenGLFunction(hLib, STRINGIFY(__name));
-#include "Common/GLInclude/glFunctions.h"
-#undef GLFUNC
-}
-#elif BOOST_OS_LINUX || BOOST_OS_BSD
+#if BOOST_OS_LINUX || BOOST_OS_BSD
 GL_IMPORT _GetOpenGLFunction(void* hLib, PFNGLXGETPROCADDRESSPROC func, const char* name)
 {
 	GL_IMPORT r = (GL_IMPORT)func((const GLubyte*)name);
@@ -322,11 +296,6 @@ void OpenGLRenderer::Initialize()
 	}
 	// sRGB S3TC formats require both extensions
 	m_supportsS3TCSRGB |= m_supportsS3TC && supportsTextureSRGB;
-
-#if BOOST_OS_WINDOWS
-	if (wglSwapIntervalEXT)
-		wglSwapIntervalEXT(0); // disable V-Sync per default
-#endif
 
 	if (glMaxShaderCompilerThreadsARB)
 		glMaxShaderCompilerThreadsARB(0xFFFFFFFF);

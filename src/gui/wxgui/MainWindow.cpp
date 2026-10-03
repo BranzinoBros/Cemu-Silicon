@@ -315,11 +315,6 @@ MainWindow::MainWindow()
 	this->EnableFullScreenView(true);
 #endif
 
-#if BOOST_OS_WINDOWS
-	HICON hWindowIcon = (HICON)LoadImageA(NULL, "M_WND_ICON16", IMAGE_ICON, 16, 16, LR_LOADFROMFILE);
-	SendMessage(this->GetHWND(), WM_SETICON, ICON_SMALL, (LPARAM)hWindowIcon);
-#endif
-
 	auto* main_sizer = new wxBoxSizer(wxVERTICAL);
     auto load_file = LaunchSettings::GetLoadFile();
     auto load_title_id = LaunchSettings::GetLoadTitleID();
@@ -824,25 +819,6 @@ void MainWindow::TogglePadView()
 	}
 }
 
-#if BOOST_OS_WINDOWS
-
-#ifndef DBT_DEVNODES_CHANGED
-#define DBT_DEVNODES_CHANGED (0x0007)
-#endif
-WXLRESULT MainWindow::MSWWindowProc(WXUINT nMsg, WXWPARAM wParam, WXLPARAM lParam)
-{
-	if (nMsg == WM_DEVICECHANGE)
-	{
-		if (wParam == DBT_DEVNODES_CHANGED)
-		{
-			InputManager::instance().on_device_changed();
-		}
-	}
-
-	return wxFrame::MSWWindowProc(nMsg, wParam, lParam);
-}
-#endif
-
 void MainWindow::OpenSettings()
 {
 	auto& config = GetWxGUIConfig();
@@ -1234,31 +1210,6 @@ void MainWindow::OnDebugViewTextureRelations(wxCommandEvent& event)
 
 void MainWindow::ShowCursor(bool state)
 {
-	#if BOOST_OS_WINDOWS
-	CURSORINFO info{};
-	info.cbSize = sizeof(CURSORINFO);
-	GetCursorInfo(&info);
-	const bool visible = info.flags == CURSOR_SHOWING;
-
-	if (state == visible)
-		return;
-
-	int counter = 0;
-	if(state)
-	{
-		do
-		{
-			counter = ::ShowCursor(TRUE);
-		} while (counter < 0);
-	}
-	else
-	{
-		do
-		{
-			counter = ::ShowCursor(FALSE);
-		} while (counter >= 0);
-	}
-	#else
 	if (state)
 	{
 		wxSetCursor(wxNullCursor); // restore system default cursor
@@ -1267,19 +1218,12 @@ void MainWindow::ShowCursor(bool state)
 	{
 		wxSetCursor(wxCursor(wxCURSOR_BLANK));
 	}
-	#endif
 }
 
 uintptr_t MainWindow::GetRenderCanvasHWND()
 {
 	// deprecated. We can use the global cross-platform window info structs now
-	#if BOOST_OS_WINDOWS
-	if (!m_render_canvas)
-		return 0;
-	return (uintptr_t)m_render_canvas->GetHWND();
-	#else
 	return 0;
-	#endif
 }
 
 wxRect MainWindow::GetDesktopRect()

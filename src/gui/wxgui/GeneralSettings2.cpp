@@ -19,10 +19,6 @@
 #include "config/NetworkSettings.h"
 
 #include "audio/IAudioAPI.h"
-#if BOOST_OS_WINDOWS
-#include "audio/DirectSoundAPI.h"
-#include "audio/XAudio27API.h"
-#endif
 #include "audio/CubebAPI.h"
 
 #include "audio/IAudioInputAPI.h"
@@ -40,10 +36,6 @@
 #include "util/helpers/SystemException.h"
 #include "wxgui/dialogs/CreateAccount/wxCreateAccountDialog.h"
 
-#if BOOST_OS_WINDOWS
-#include <VersionHelpers.h>
-#endif
-
 #include "config/LaunchSettings.h"
 #include "config/ActiveSettings.h"
 #include "wxgui/helpers/wxHelpers.h"
@@ -57,9 +49,6 @@
 
 #include "util/ScreenSaver/ScreenSaver.h"
 
-const wxString kDirectSound("DirectSound");
-const wxString kXAudio27("XAudio2.7");
-const wxString kXAudio2("XAudio2");
 const wxString kCubeb("Cubeb");
 
 const wxString kPropertyPersistentId("PersistentId");
@@ -157,28 +146,6 @@ wxPanel* GeneralSettings2::AddGeneralPage(wxNotebook* notebook)
 
 			box_sizer->Add(first_row, 1, wxEXPAND, 5);
 		}
-
-#if BOOST_OS_WINDOWS
-		{
-			auto* second_row = new wxFlexGridSizer(0, 2, 0, 0);
-			second_row->SetFlexibleDirection(wxBOTH);
-			second_row->SetNonFlexibleGrowMode(wxFLEX_GROWMODE_SPECIFIED);
-
-			second_row->Add(new wxStaticText(box, wxID_ANY, _("Theme")), 0, wxALIGN_CENTER_VERTICAL | wxALL, 5);
-
-			m_msw_theme = new wxChoice(box, wxID_ANY);
-			m_msw_theme->SetToolTip(_("Changes the Windows theme used by Cemu\nThis only works on Windows 10 and later\nA restart will be required for any changes to take effect"));
-
-			m_msw_theme->AppendString(_("Follow Windows theme"));
-			m_msw_theme->AppendString(_("Light Theme"));
-			m_msw_theme->AppendString(_("Dark Theme"));
-			m_msw_theme->SetSelection(0);
-
-			second_row->Add(m_msw_theme, 0, wxALL, 5);
-
-			box_sizer->Add(second_row, 0, wxEXPAND, 5);
-		}
-#endif
 
 		{
 			auto* third_row = new wxFlexGridSizer(0, 3, 0, 0);
@@ -524,12 +491,6 @@ wxPanel* GeneralSettings2::AddAudioPage(wxNotebook* notebook)
 		audio_general_row->Add(new wxStaticText(box, wxID_ANY, _("API")), 0, wxALIGN_CENTER_VERTICAL | wxALL, 5);
 
 		m_audio_api = new wxChoice(box, wxID_ANY);
-		if (IAudioAPI::IsAudioAPIAvailable(IAudioAPI::DirectSound))
-			m_audio_api->Append(kDirectSound);
-		if (IAudioAPI::IsAudioAPIAvailable(IAudioAPI::XAudio27))
-			m_audio_api->Append(kXAudio27);
-		if (IAudioAPI::IsAudioAPIAvailable(IAudioAPI::XAudio2))
-			m_audio_api->Append(kXAudio2);
 		if (IAudioAPI::IsAudioAPIAvailable(IAudioAPI::Cubeb))
 			m_audio_api->Append(kCubeb);
 
@@ -770,22 +731,7 @@ wxPanel* GeneralSettings2::AddOverlayPage(wxNotebook* notebook)
 			settings2_row->Add(m_overlay_ram, 0, wxALL, 5);
 
 			m_overlay_vram = new wxCheckBox(box, wxID_ANY, _("VRAM usage"));
-#if BOOST_OS_WINDOWS
-			using RtlGetVersion_t = LONG(WINAPI*)(PRTL_OSVERSIONINFOW lpVersionInformation);
-			const auto pRtlGetVersion = (RtlGetVersion_t)GetProcAddress(GetModuleHandleA("ntdll.dll"), "RtlGetVersion");
-			//if(IsWindows8Point1OrGreater()) requires manifest
-			RTL_OSVERSIONINFOW info{};
-			// Windows 8.1 	6.3*
-			if (pRtlGetVersion && pRtlGetVersion(&info) == 0 && ((info.dwMajorVersion == 6 && info.dwMinorVersion >= 3) || info.dwMajorVersion > 6))
-				m_overlay_vram->SetToolTip(_("The VRAM usage of Cemu in MB"));
-			else
-			{
-				m_overlay_vram->SetToolTip(_("This option requires Win8.1+"));
-				m_overlay_vram->Disable();
-			}
-#else
 			m_overlay_vram->SetToolTip(_("The VRAM usage of Cemu in MB"));
-#endif
 
 			settings2_row->Add(m_overlay_vram, 0, wxALL, 5);
 
@@ -1007,16 +953,12 @@ wxPanel* GeneralSettings2::AddDebugPage(wxNotebook* notebook)
 
 		debug_row->Add(new wxStaticText(panel, wxID_ANY, _("Crash dump")), 0, wxALIGN_CENTER_VERTICAL | wxALL, 5);
 
-#if BOOST_OS_WINDOWS
-		wxString dump_choices[] = {_("Disabled"), _("Lite"), _("Full")};
-#elif BOOST_OS_UNIX
+#if BOOST_OS_UNIX
 		wxString dump_choices[] = {_("Disabled"), _("Enabled")};
 #endif
 		m_crash_dump = new wxChoice(panel, wxID_ANY, wxDefaultPosition, wxDefaultSize, std::size(dump_choices), dump_choices);
 		m_crash_dump->SetSelection(0);
-#if BOOST_OS_WINDOWS
-		m_crash_dump->SetToolTip(_("Creates a dump when Cemu crashes\nOnly enable when requested by a developer!\nThe Full option will create a very large dump file (includes a full RAM dump of the Cemu process)"));
-#elif BOOST_OS_UNIX
+#if BOOST_OS_UNIX
 		m_crash_dump->SetToolTip(_("Creates a core dump when Cemu crashes\nOnly enable when requested by a developer!"));
 #endif
 		debug_row->Add(m_crash_dump, 0, wxALL | wxEXPAND, 5);
@@ -1129,9 +1071,6 @@ void GeneralSettings2::StoreConfig()
 #if BOOST_OS_LINUX && defined(ENABLE_FERAL_GAMEMODE)
     wxGuiConfig.feral_gamemode = m_feral_gamemode->IsChecked();
 #endif
-#if BOOST_OS_WINDOWS
-	wxGuiConfig.msw_theme = m_msw_theme->GetSelection();
-#endif
 	config.play_boot_sound = m_play_boot_sound->IsChecked();
 	config.disable_screensaver = m_disable_screensaver->IsChecked();
 	// toggle while a game is running
@@ -1167,13 +1106,7 @@ void GeneralSettings2::StoreConfig()
 	}
 
 	// audio
-	if (m_audio_api->GetStringSelection() == kDirectSound)
-		config.audio_api = IAudioAPI::DirectSound;
-	else if (m_audio_api->GetStringSelection() == kXAudio27)
-		config.audio_api = IAudioAPI::XAudio27;
-	else if (m_audio_api->GetStringSelection() == kXAudio2)
-		config.audio_api = IAudioAPI::XAudio2;
-	else if (m_audio_api->GetStringSelection() == kCubeb)
+	if (m_audio_api->GetStringSelection() == kCubeb)
 		config.audio_api = IAudioAPI::Cubeb;
 
 	config.audio_delay = m_audio_latency->GetValue();
@@ -1480,9 +1413,6 @@ void GeneralSettings2::ResetAccountInformation()
 
 	// refresh pane size
 	m_account_information->InvalidateBestSize();
-	#if BOOST_OS_WINDOWS
-	m_account_information->OnStateChange(GetBestSize());
-	#endif
 }
 
 void GeneralSettings2::OnAccountCreate(wxCommandEvent& event)
@@ -1781,9 +1711,6 @@ void GeneralSettings2::HandleGraphicsApiSelection()
 		m_vsync->AppendString(_("Off"));
 		m_vsync->AppendString(_("Double buffering"));
 		m_vsync->AppendString(_("Triple buffering"));
-#if BOOST_OS_WINDOWS
-		m_vsync->AppendString(_("Match emulated display (Experimental)"));
-#endif
 
 		m_vsync->Select(selection);
 
@@ -1893,9 +1820,6 @@ void GeneralSettings2::ApplyConfig()
 
 	m_disable_screensaver->SetValue(config.disable_screensaver);
 	m_play_boot_sound->SetValue(config.play_boot_sound);
-#if BOOST_OS_WINDOWS
-	m_msw_theme->SetSelection(wxGUIconfig.msw_theme);
-#endif
 #if BOOST_OS_LINUX && defined(ENABLE_FERAL_GAMEMODE)
     	m_feral_gamemode->SetValue(wxGUIconfig.feral_gamemode);
 #endif
@@ -1978,13 +1902,7 @@ void GeneralSettings2::ApplyConfig()
 	m_friends_data->SetValue(config.notification.friends);
 
 	// audio
-	if(config.audio_api == IAudioAPI::DirectSound)
-		m_audio_api->SetStringSelection(kDirectSound);
-	else if(config.audio_api == IAudioAPI::XAudio27)
-		m_audio_api->SetStringSelection(kXAudio27);
-	else if(config.audio_api == IAudioAPI::XAudio2)
-		m_audio_api->SetStringSelection(kXAudio2);
-	else if(config.audio_api == IAudioAPI::Cubeb)
+	if(config.audio_api == IAudioAPI::Cubeb)
 		m_audio_api->SetStringSelection(kCubeb);
 
 	SendSliderEvent(m_audio_latency, config.audio_delay);
@@ -2089,13 +2007,7 @@ void GeneralSettings2::ApplyConfig()
 void GeneralSettings2::OnAudioAPISelected(wxCommandEvent& event)
 {
 	IAudioAPI::AudioAPI api;
-	if (m_audio_api->GetStringSelection() == kDirectSound)
-		api = IAudioAPI::DirectSound;
-	else if (m_audio_api->GetStringSelection() == kXAudio27)
-		api = IAudioAPI::XAudio27;
-	else if (m_audio_api->GetStringSelection() == kXAudio2)
-		api = IAudioAPI::XAudio2;
-	else if (m_audio_api->GetStringSelection() == kCubeb)
+	if (m_audio_api->GetStringSelection() == kCubeb)
 		api = IAudioAPI::Cubeb;
 	else
 	{

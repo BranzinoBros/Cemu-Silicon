@@ -12,9 +12,7 @@
 #endif
 
 inline void cpuid(int cpuInfo[4], int functionId) {
-#if defined(_MSC_VER)
-	__cpuid(cpuInfo, functionId);
-#elif defined(__GNUC__)
+#if defined(__GNUC__)
 	__cpuid(functionId, cpuInfo[0], cpuInfo[1], cpuInfo[2], cpuInfo[3]);
 #else
 #error No definition for cpuid
@@ -22,9 +20,7 @@ inline void cpuid(int cpuInfo[4], int functionId) {
 }
 
 inline void cpuidex(int cpuInfo[4], int functionId, int subFunctionId) {
-#if defined(_MSC_VER)
-	__cpuidex(cpuInfo, functionId, subFunctionId);
-#elif defined(__GNUC__)
+#if defined(__GNUC__)
 	__cpuid_count(functionId, subFunctionId, cpuInfo[0], cpuInfo[1], cpuInfo[2], cpuInfo[3]);
 #else
 #error No definition for cpuidex

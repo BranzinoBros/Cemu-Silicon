@@ -9,10 +9,6 @@
 #include <wx/app.h>
 #include <wx/clipbrd.h>
 
-#if BOOST_OS_WINDOWS
-#include <ole2.h>
-#endif
-
 #if BOOST_OS_LINUX || BOOST_OS_MACOS || BOOST_OS_BSD
 #include "resource/embedded/resources.h"
 #endif
@@ -78,11 +74,6 @@ bool SaveScreenshotToClipboard(const wxImage& image)
 
 std::optional<std::string> SaveScreenshot(std::vector<uint8> data, int width, int height, bool mainWindow)
 {
-#if BOOST_OS_WINDOWS
-	// on Windows wxWidgets uses OLE API for the clipboard
-	// to make this work we need to call OleInitialize() on the same thread
-	OleInitialize(nullptr);
-#endif
 	bool save_screenshot = GetWxGUIConfig().save_screenshot;
 	wxImage image(width, height, data.data(), true);
 	if (mainWindow)

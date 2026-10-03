@@ -33,27 +33,12 @@ WindowSystem::WindowInfo g_window_info{};
 std::shared_mutex g_mutex;
 MainWindow* g_mainFrame = nullptr;
 
-#if BOOST_OS_WINDOWS
-void _wxLaunch()
-{
-	SetThreadName("MainThread_UI");
-	wxEntry();
-}
-#endif
-
 void WindowSystem::Create()
 {
 	SetThreadName("cemu");
-#if BOOST_OS_WINDOWS
-	// on Windows wxWidgets there is a bug where wxDirDialog->ShowModal will deadlock in Windows internals somehow
-	// moving the UI thread off the main thread fixes this
-	std::thread t = std::thread(_wxLaunch);
-	t.join();
-#else
 	int argc = 0;
 	char* argv[1]{};
 	wxEntry(argc, argv);
-#endif
 }
 
 void WindowSystem::ShowErrorDialog(std::string_view message, std::string_view title, std::optional<WindowSystem::ErrorCategory> /*errorId*/)
@@ -221,20 +206,7 @@ bool WindowSystem::IsKeyDown(PlatformKeyCodes platformKey)
 
 	switch (platformKey)
 	{
-#if BOOST_OS_WINDOWS
-	case PlatformKeyCodes::LCONTROL:
-		key = VK_LCONTROL;
-		break;
-	case PlatformKeyCodes::RCONTROL:
-		key = VK_RCONTROL;
-		break;
-	case PlatformKeyCodes::TAB:
-		key = VK_TAB;
-		break;
-	case PlatformKeyCodes::ESCAPE:
-		key = VK_ESCAPE;
-		break;
-#elif BOOST_OS_LINUX || BOOST_OS_BSD
+#if BOOST_OS_LINUX || BOOST_OS_BSD
 	case PlatformKeyCodes::LCONTROL:
 		key = GDK_KEY_Control_L;
 		break;
@@ -270,40 +242,7 @@ bool WindowSystem::IsKeyDown(PlatformKeyCodes platformKey)
 
 std::string WindowSystem::GetKeyCodeName(uint32 button)
 {
-#if BOOST_OS_WINDOWS
-	LONG scan_code = MapVirtualKeyA((UINT)button, MAPVK_VK_TO_VSC_EX);
-	if (HIBYTE(scan_code))
-		scan_code |= 0x100;
-
-	// because MapVirtualKey strips the extended bit for some keys
-	switch (button)
-	{
-	case VK_LEFT:
-	case VK_UP:
-	case VK_RIGHT:
-	case VK_DOWN: // arrow keys
-	case VK_PRIOR:
-	case VK_NEXT: // page up and page down
-	case VK_END:
-	case VK_HOME:
-	case VK_INSERT:
-	case VK_DELETE:
-	case VK_DIVIDE: // numpad slash
-	case VK_NUMLOCK:
-	{
-		scan_code |= 0x100; // set extended bit
-		break;
-	}
-	}
-
-	scan_code <<= 16;
-
-	char key_name[128];
-	if (GetKeyNameTextA(scan_code, key_name, std::size(key_name)) != 0)
-		return key_name;
-	else
-		return fmt::format("key_{}", button);
-#elif BOOST_OS_LINUX || BOOST_OS_BSD
+#if BOOST_OS_LINUX || BOOST_OS_BSD
 	return gdk_keyval_name(button);
 #else
 	return fmt::format("key_{}", button);

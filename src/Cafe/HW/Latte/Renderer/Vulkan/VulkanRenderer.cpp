@@ -111,9 +111,7 @@ std::vector<VulkanRenderer::DeviceInfo> VulkanRenderer::GetDevices()
 	std::vector<const char*> requiredExtensions;
 	requiredExtensions.clear();
 	requiredExtensions.emplace_back(VK_KHR_SURFACE_EXTENSION_NAME);
-	#if BOOST_OS_WINDOWS
-	requiredExtensions.emplace_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
-	#elif BOOST_OS_LINUX || BOOST_OS_BSD
+	#if BOOST_OS_LINUX || BOOST_OS_BSD
 	auto backend = WindowSystem::GetWindowInfo().window_main.backend;
 	if(backend == WindowSystem::WindowHandleInfo::Backend::X11)
 		requiredExtensions.emplace_back(VK_KHR_XLIB_SURFACE_EXTENSION_NAME);
@@ -632,9 +630,6 @@ VulkanRenderer::VulkanRenderer() : Renderer(RendererAPI::Vulkan)
 		physDeviceProps.pNext = &physDeviceIDProps;
 		vkGetPhysicalDeviceProperties2(m_physicalDevice, &physDeviceProps);
 
-		#if BOOST_OS_WINDOWS
-		m_dxgi_wrapper = std::make_unique<DXGIWrapper>(physDeviceIDProps.deviceLUID);
-		#endif
 	}
 	catch (const std::exception& ex)
 	{
@@ -1489,9 +1484,7 @@ std::vector<const char*> VulkanRenderer::CheckInstanceExtensionSupport(FeatureCo
 	// build list of required extensions
 	std::vector<const char*> requiredInstanceExtensions;
 	requiredInstanceExtensions.emplace_back(VK_KHR_SURFACE_EXTENSION_NAME);
-	#if BOOST_OS_WINDOWS
-	requiredInstanceExtensions.emplace_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
-	#elif BOOST_OS_LINUX || BOOST_OS_BSD
+	#if BOOST_OS_LINUX || BOOST_OS_BSD
 	auto backend = WindowSystem::GetWindowInfo().window_main.backend;
 	if(backend == WindowSystem::WindowHandleInfo::Backend::X11)
 		requiredInstanceExtensions.emplace_back(VK_KHR_XLIB_SURFACE_EXTENSION_NAME);
@@ -1558,26 +1551,6 @@ bool VulkanRenderer::IsDeviceSuitable(VkSurfaceKHR surface, const VkPhysicalDevi
 	return !swapchainSupport.formats.empty() && !swapchainSupport.presentModes.empty();
 }
 
-#if BOOST_OS_WINDOWS
-VkSurfaceKHR VulkanRenderer::CreateWinSurface(VkInstance instance, HWND hwindow)
-{
-	VkWin32SurfaceCreateInfoKHR sci{};
-	sci.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
-	sci.hwnd = hwindow;
-	sci.hinstance = GetModuleHandle(nullptr);
-
-	VkSurfaceKHR result;
-	VkResult err;
-	if ((err = vkCreateWin32SurfaceKHR(instance, &sci, nullptr, &result)) != VK_SUCCESS)
-	{
-		cemuLog_log(LogType::Force, "Cannot create a Win32 Vulkan surface: {}", (sint32)err);
-		throw std::runtime_error(fmt::format("Cannot create a Win32 Vulkan surface: {}", err));
-	}
-
-	return result;
-}
-#endif
-
 #if BOOST_OS_LINUX || BOOST_OS_BSD
 VkSurfaceKHR VulkanRenderer::CreateXlibSurface(VkInstance instance, Display* dpy, Window window)
 {
@@ -1640,9 +1613,7 @@ VkSurfaceKHR VulkanRenderer::CreateWaylandSurface(VkInstance instance, wl_displa
 
 VkSurfaceKHR VulkanRenderer::CreateFramebufferSurface(VkInstance instance, WindowSystem::WindowHandleInfo& windowInfo)
 {
-#if BOOST_OS_WINDOWS
-	return CreateWinSurface(instance, static_cast<HWND>(windowInfo.surface));
-#elif BOOST_OS_LINUX || BOOST_OS_BSD
+#if BOOST_OS_LINUX || BOOST_OS_BSD
 	if(windowInfo.backend == WindowSystem::WindowHandleInfo::Backend::X11)
 		return CreateXlibSurface(instance, static_cast<Display*>(windowInfo.display), reinterpret_cast<Window>(windowInfo.surface));
 	#ifdef HAS_WAYLAND

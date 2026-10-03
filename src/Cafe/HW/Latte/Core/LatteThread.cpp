@@ -268,10 +268,6 @@ void LatteThread_Exit()
 	}
 	// reset GPU7 state
 	std::memset(&LatteGPUState, 0, sizeof(LatteGPUState));
-	#if BOOST_OS_WINDOWS
-	ExitThread(0);
-	#else
 	pthread_exit(nullptr);
-	#endif
 	cemu_assert_unimplemented();
 }

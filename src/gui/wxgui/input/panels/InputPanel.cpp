@@ -236,9 +236,6 @@ void InputPanel::on_edit_key_focus(wxFocusEvent& event)
 	m_color_backup[text->GetId()] = text->GetBackgroundColour();
 
 	text->SetBackgroundColour(kKeyColourEditMode);
-	#if BOOST_OS_WINDOWS
-	text->HideNativeCaret();
-	#endif
 	text->Refresh();
 
 	m_focused_element = text->GetId();
@@ -275,9 +272,6 @@ bool InputPanel::reset_focused_element()
 	else
 		prev_element->SetBackgroundColour(kKeyColourNormalMode);
 
-#if BOOST_OS_WINDOWS
-	prev_element->HideNativeCaret();
-#endif
 	prev_element->Refresh();
 	
 	m_focused_element = wxID_NONE;
