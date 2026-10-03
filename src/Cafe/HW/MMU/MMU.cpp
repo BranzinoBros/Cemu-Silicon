@@ -102,9 +102,35 @@ void MMURange::mapMem()
 	m_isMapped = true;
 }
 
+// returns true if any mapped range other than excludedRange overlaps with the host page at hostPageAddress
+static bool memory_isHostPageUsedByOtherRange(uint64 hostPageAddress, uint64 hostPageSize, const MMURange* excludedRange)
+{
+	for (auto& itr : g_mmuRanges)
+	{
+		if (itr == excludedRange || !itr->isMapped())
+			continue;
+		if ((uint64)itr->getBase() < hostPageAddress + hostPageSize && (uint64)itr->getBase() + itr->getSize() > hostPageAddress)
+			return true;
+	}
+	return false;
+}
+
 void MMURange::unmapMem()
 {
-    MemMapper::FreeMemory(memory_base + baseAddress, size, true);
+	cemu_assert_debug(m_isMapped);
+	// the host page size can be larger than the 4KiB guest page size (16KiB on Apple Silicon)
+	// mapMem() commits all host pages overlapping with this range, so decommit them all here too, except for pages still used by another mapped range
+	const uint64 hostPageSize = MemMapper::GetPageSize();
+	const uint64 rangeBegin = baseAddress;
+	const uint64 rangeEnd = (uint64)baseAddress + size;
+	uint64 freeBegin = rangeBegin & ~(hostPageSize - 1);
+	uint64 freeEnd = (rangeEnd + hostPageSize - 1) & ~(hostPageSize - 1);
+	if (freeBegin < rangeBegin && memory_isHostPageUsedByOtherRange(freeBegin, hostPageSize, this))
+		freeBegin += hostPageSize;
+	if (freeEnd > rangeEnd && freeEnd - hostPageSize >= freeBegin && memory_isHostPageUsedByOtherRange(freeEnd - hostPageSize, hostPageSize, this))
+		freeEnd -= hostPageSize;
+	if (freeEnd > freeBegin)
+		MemMapper::FreeMemory(memory_base + freeBegin, freeEnd - freeBegin, true);
 	m_isMapped = false;
 }
 

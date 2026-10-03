@@ -4,7 +4,9 @@
 
 #include <cubeb/cubeb.h>
 
+#include <atomic>
 #include <memory>
+#include <mutex>
 
 class CubebAPI : public IAudioAPI
 {
@@ -46,7 +48,14 @@ private:
 	cubeb_stream* m_stream = nullptr;
 	bool m_is_playing = false;
 
-	mutable std::shared_mutex m_mutex;
-	std::vector<uint8> m_buffer;
+	// single-producer/single-consumer ring buffer between FeedBlock() and the realtime data_cb()
+	// data_cb() never blocks, m_producerMutex only serializes FeedBlock() callers
+	std::unique_ptr<uint8[]> m_buffer;
+	size_t m_bufferSize = 0;
+	std::atomic<size_t> m_readPos{ 0 }; // total bytes consumed, only advanced by data_cb()
+	std::atomic<size_t> m_writePos{ 0 }; // total bytes queued, only advanced by FeedBlock()
+	std::mutex m_producerMutex;
+	static_assert(std::atomic<size_t>::is_always_lock_free);
+
 	static long data_cb(cubeb_stream* stream, void* user, const void* inputbuffer, void* outputbuffer, long nframes);
 };

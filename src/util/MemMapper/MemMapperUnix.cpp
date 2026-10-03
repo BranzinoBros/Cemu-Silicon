@@ -40,29 +40,36 @@ namespace MemMapper
 		munmap(baseAddr, size);
 	}
 
+	// mprotect() requires page aligned addresses. The host page size (16KiB on Apple Silicon) can be larger than the 4KiB granularity used by callers
+	// commit all host pages which overlap with the requested range
 	void* AllocateMemory(void* baseAddr, size_t size, PAGE_PERMISSION permissionFlags, bool fromReservation)
 	{
 		void* r;
 		if(fromReservation)
 		{
-		    uint64 page_size = sysconf(_SC_PAGESIZE);
-		    void* page = baseAddr;
-		    if ( (uint64) baseAddr % page_size != 0 )
-		        page = (void*) ((uint64)baseAddr & ~(page_size - 1));
-			if( mprotect(page, size, GetProt(permissionFlags)) == 0 )
-                r = baseAddr;
+			const uintptr_t alignedBegin = (uintptr_t)baseAddr & ~(uintptr_t)(sPageSize - 1);
+			const uintptr_t alignedEnd = ((uintptr_t)baseAddr + size + sPageSize - 1) & ~(uintptr_t)(sPageSize - 1);
+			if( mprotect((void*)alignedBegin, alignedEnd - alignedBegin, GetProt(permissionFlags)) == 0 )
+				r = baseAddr;
 			else
-                r = nullptr;
+				r = nullptr;
 		}
 		else
 			r = mmap(baseAddr, size, GetProt(permissionFlags), MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 		return r;
 	}
 
+	// decommits only the host pages which are entirely inside the range, since partially covered pages may still be in use by neighbouring allocations
+	// callers which know that a partially covered page is no longer used should pass the page aligned range (see MMURange::unmapMem)
 	void FreeMemory(void* baseAddr, size_t size, bool fromReservation)
 	{
 		if (fromReservation)
-			mprotect(baseAddr, size, PROT_NONE);
+		{
+			const uintptr_t alignedBegin = ((uintptr_t)baseAddr + sPageSize - 1) & ~(uintptr_t)(sPageSize - 1);
+			const uintptr_t alignedEnd = ((uintptr_t)baseAddr + size) & ~(uintptr_t)(sPageSize - 1);
+			if (alignedEnd > alignedBegin)
+				mprotect((void*)alignedBegin, alignedEnd - alignedBegin, PROT_NONE);
+		}
 		else
 			munmap(baseAddr, size);
 	}

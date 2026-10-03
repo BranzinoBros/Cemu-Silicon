@@ -103,3 +103,9 @@ target_include_directories(CemuUtil PUBLIC "../")
 target_link_libraries(CemuUtil PRIVATE
   CemuCommon
 )
+
+if (ENABLE_AES128_TEST)
+	# standalone executable, compiles aes128.cpp directly and does not depend on the rest of Cemu
+	add_executable(CemuAES128Test crypto/aes128_test.cpp)
+	target_include_directories(CemuAES128Test PRIVATE "../")
+endif()

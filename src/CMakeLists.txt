@@ -6,6 +6,12 @@ if(CEMU_CXX_FLAGS)
 	add_compile_options(${CEMU_CXX_FLAGS})
 endif()
 
+# Apple M1 is the baseline of every Apple Silicon Mac. Set here (directory scope) so it only applies to Cemu's own targets
+# and not to the dependencies added from the top-level CMakeLists.txt (ih264d, xbyak_aarch64, ...) or to vcpkg port builds
+if(APPLE AND CEMU_ARCHITECTURE MATCHES "^(aarch64|AARCH64|arm64|ARM64)$")
+	add_compile_options($<$<COMPILE_LANGUAGE:C,CXX,OBJC,OBJCXX>:-mcpu=apple-m1>)
+endif()
+
 if(NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
 	message( FATAL_ERROR "Pointers are not 64bit" )
 endif()
