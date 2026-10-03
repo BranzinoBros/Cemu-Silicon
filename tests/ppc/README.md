@@ -16,7 +16,8 @@ without needing any game:
   merges, sums, estimates, compares, `psq_l`/`psq_st` with several GQR types and
   scales, and how scalar FP instructions affect ps1).
 - **`ppc_bench.rpx`**: CPU-bound microbenchmarks with a fixed amount of work:
-  tight integer loop, branchy code, double precision math, paired single math,
+  tight integer loop (split into calls of 4096 iterations, and as one long
+  loop), branchy code, double precision math, paired single math,
   memcpy-style loads/stores, deep and indirect call chains (function-to-function
   transitions in the recompiler) and an `lwarx`/`stwcx.` loop.
 
@@ -80,7 +81,10 @@ lines are `checksum: <hash of all result words>` and `PPC_TESTS_DONE`.
 
 Cemu recompiles functions asynchronously after their first execution, so every
 test runs 6 times with short sleeps in between and only the last pass is
-printed (by then it runs as recompiled code). A `# unstable: <name>` line means
+printed (by then it runs as recompiled code). The `# pass us:` line shows the
+guest time of each pass: with the recompiler, passes after the first should be
+several times faster, which confirms the tests ran recompiled (the last pass
+includes printing). A `# unstable: <name>` line means
 that test produced different results in different passes, which within the
 recompiler run usually means interpreter and recompiler disagree.
 
@@ -105,7 +109,9 @@ stores FPSCR without changing the host rounding mode. A mismatch in
 `rounding_modes`, `mtfsf_mffs` or `fpscr_flags` is therefore about FPSCR
 bookkeeping rather than arithmetic.
 
-`ppc_bench` prints `bench <name>: us=<guest microseconds> checksum=<hex>` per
+`ppc_bench` runs each benchmark twice with a small amount of work (each
+followed by a sleep so the recompiler can translate it), then times the real
+run. It prints `bench <name>: us=<guest microseconds> checksum=<hex>` per
 benchmark (time from `OSGetSystemTime`, which Cemu derives from the host
 clock), then `bench_total` and `PPC_BENCH_DONE`. The script shows a table with
 recompiler and interpreter times, the speedup and the host wall time of each
@@ -132,7 +138,8 @@ prefers them over the prebuilt copies when they exist. The
 `Build PPC homebrew tests` workflow (`.github/workflows/homebrew_tests.yml`)
 builds them on every change under `tests/ppc/` and uploads them as the
 `ppc-homebrew-tests` artifact. After changing the sources, copy the new files
-into `tests/ppc/prebuilt/`.
+into `tests/ppc/prebuilt/`. The committed binaries were built with devkitPPC r50,
+wut 1.9.1 and wut-tools 1.3.5 (`devkitpro/devkitppc:latest` in October 2026).
 
 ## Adding tests
 

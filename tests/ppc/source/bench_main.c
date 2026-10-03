@@ -2,8 +2,8 @@
 //
 // Every benchmark performs a fixed amount of work and returns a checksum so the
 // work can't be optimized away (and so recompiler and interpreter results can
-// be compared). Each benchmark first runs a short warm-up, then the thread
-// sleeps briefly so Cemu's recompiler can translate the code before the timed
+// be compared). Each benchmark first runs two short warm-ups, each followed
+// by a sleep, so Cemu's recompiler can translate the code before the timed
 // run.
 //
 // Output format:
@@ -14,21 +14,49 @@
 
 #include "common.h"
 
-#define WARMUP_SLEEP_MS 60
+#define WARMUP_SLEEP_MS 150
 
 /* --- tight integer loop --- */
 
-static NOINLINE u32 BenchIntLoop(u32 n)
+typedef struct
 {
-	u32 a = 0x12345678, b = 0x9ABCDEF0, c = 1;
-	for (u32 i = 0; i < n; i++)
+	u32 a, b, c;
+} IntState;
+
+static NOINLINE void IntKernel(IntState* s, u32 base, u32 n)
+{
+	u32 a = s->a, b = s->b, c = s->c;
+	for (u32 i = base; i < base + n; i++)
 	{
 		a += b ^ i;
 		b = (b << 5) | (b >> 27);
 		c = c * 3 + (a >> 7);
 		b -= c & 0xFF;
 	}
-	return a ^ b ^ c;
+	s->a = a;
+	s->b = b;
+	s->c = c;
+}
+
+#define CHUNK 4096
+
+// the work is split into calls of CHUNK iterations. Cemu enters recompiled
+// code at function entries, so this measures recompiled loop throughput
+static NOINLINE u32 BenchIntLoop(u32 n)
+{
+	IntState s = {0x12345678, 0x9ABCDEF0, 1};
+	for (u32 i = 0; i < n; i += CHUNK)
+		IntKernel(&s, i, CHUNK);
+	return s.a ^ s.b ^ s.c;
+}
+
+// same work as one long loop without calls; compare with int_loop to see the
+// cost of the function-to-function transitions
+static NOINLINE u32 BenchIntLongLoop(u32 n)
+{
+	IntState s = {0x12345678, 0x9ABCDEF0, 1};
+	IntKernel(&s, 0, n);
+	return s.a ^ s.b ^ s.c;
 }
 
 /* --- branchy code with data dependent branches --- */
@@ -92,16 +120,13 @@ static NOINLINE u32 BenchFpDouble(u32 n)
 static float s_psData[8] __attribute__((aligned(16))) = {1.0f, 0.5f, -0.25f, 2.0f, 0.999f, 0.998f, 0.001f, 0.002f};
 static float s_psOut[4] __attribute__((aligned(16)));
 
-static NOINLINE u32 BenchPairedSingle(u32 n)
+static NOINLINE void PairedSingleKernel(u32 n)
 {
-	u32 gqr7;
-	__asm__ volatile("mfspr %0,903" : "=r"(gqr7));
-	__asm__ volatile("mtspr 903,%0" : : "r"(0));
 	u32 cnt = n;
 	__asm__ volatile(
 		"mtctr %[n]\n\t"
-		"psq_l 1,0(%[d]),0,7\n\t"   // v0
-		"psq_l 2,8(%[d]),0,7\n\t"   // v1
+		"psq_l 1,0(%[o]),0,7\n\t"   // v0
+		"psq_l 2,8(%[o]),0,7\n\t"   // v1
 		"psq_l 3,16(%[d]),0,7\n\t"  // decay
 		"psq_l 4,24(%[d]),0,7\n\t"  // add
 		"1:\n\t"
@@ -119,6 +144,17 @@ static NOINLINE u32 BenchPairedSingle(u32 n)
 		: [n] "+r"(cnt)
 		: [d] "b"(s_psData), [o] "b"(s_psOut)
 		: "fr1", "fr2", "fr3", "fr4", "fr5", "fr6", "fr7", "fr8", "ctr", "memory");
+}
+
+static NOINLINE u32 BenchPairedSingle(u32 n)
+{
+	u32 gqr7;
+	__asm__ volatile("mfspr %0,903" : "=r"(gqr7));
+	__asm__ volatile("mtspr 903,%0" : : "r"(0));
+	// the kernel keeps its state in s_psOut between chunks
+	memcpy(s_psOut, s_psData, sizeof(s_psOut));
+	for (u32 i = 0; i < n; i += CHUNK)
+		PairedSingleKernel(CHUNK);
 	__asm__ volatile("mtspr 903,%0" : : "r"(gqr7));
 	u32 h = FNV_INIT;
 	for (u32 i = 0; i < 4; i++)
@@ -264,10 +300,11 @@ typedef struct
 
 // work amounts are sized for roughly 0.1-0.5 s per benchmark with the recompiler
 static const Bench kBenches[] = {
-	{"int_loop", BenchIntLoop, 1000, 40000000},
+	{"int_loop", BenchIntLoop, CHUNK, 40000000},
+	{"int_long_loop", BenchIntLongLoop, 1000, 40000000},
 	{"branchy", BenchBranchy, 1000, 15000000},
 	{"fp_double", BenchFpDouble, 1000, 20000000},
-	{"paired_single", BenchPairedSingle, 1000, 20000000},
+	{"paired_single", BenchPairedSingle, CHUNK, 20000000},
 	{"memcpy", BenchMemcpy, 1, 1500},
 	{"calls", BenchCalls, 10, 600000},
 	{"atomic", BenchAtomic, 1000, 15000000},
@@ -282,6 +319,9 @@ int main(int argc, char** argv)
 	for (u32 i = 0; i < sizeof(kBenches) / sizeof(kBenches[0]); i++)
 	{
 		const Bench* b = kBenches + i;
+		// two warm-up rounds: right after boot the recompiler may still be busy
+		b->fn(b->warmup);
+		SleepMs(WARMUP_SLEEP_MS);
 		b->fn(b->warmup);
 		SleepMs(WARMUP_SLEEP_MS);
 		OSTime start = OSGetSystemTime();

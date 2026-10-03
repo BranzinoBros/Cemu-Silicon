@@ -16,7 +16,8 @@
 #include "tests.h"
 
 #define NUM_PASSES 6
-#define PASS_SLEEP_MS 40
+#define FIRST_PASS_SLEEP_MS 300 // right after boot the recompiler is still busy
+#define PASS_SLEEP_MS 60
 #define MAX_WORDS_PER_TEST 4096
 #define WORDS_PER_LINE 24
 
@@ -127,8 +128,10 @@ int main(int argc, char** argv)
 	PrintLine("PPC_TESTS_BEGIN");
 
 	// warm-up passes, gives the recompiler time to translate every test
+	u64 passUs[NUM_PASSES];
 	for (u32 pass = 0; pass < NUM_PASSES - 1; pass++)
 	{
+		OSTime passStart = OSGetSystemTime();
 		for (u32 i = 0; i < s_testCount; i++)
 		{
 			TestState* ts = s_tests + i;
@@ -142,12 +145,14 @@ int main(int argc, char** argv)
 			else if (h != ts->firstHash || s_wordCount != ts->firstCount)
 				ts->unstable = 1;
 		}
-		SleepMs(PASS_SLEEP_MS);
+		passUs[pass] = OSTicksToMicroseconds(OSGetSystemTime() - passStart);
+		SleepMs(pass == 0 ? FIRST_PASS_SLEEP_MS : PASS_SLEEP_MS);
 	}
 
 	// final pass, print results
 	u32 checksum = FNV_INIT;
 	u32 unstableCount = 0;
+	OSTime passStart = OSGetSystemTime();
 	for (u32 i = 0; i < s_testCount; i++)
 	{
 		TestState* ts = s_tests + i;
@@ -158,8 +163,20 @@ int main(int argc, char** argv)
 			ts->unstable = 1;
 		PrintTest(ts, &checksum);
 	}
+	// includes printing, so the last pass is slower than the others
+	passUs[NUM_PASSES - 1] = OSTicksToMicroseconds(OSGetSystemTime() - passStart);
 
+	// guest time per pass, later passes should be faster once recompiled
 	OutLine l;
+	OutReset(&l);
+	OutStr(&l, "# pass us:");
+	for (u32 pass = 0; pass < NUM_PASSES; pass++)
+	{
+		OutStr(&l, " ");
+		OutDec(&l, passUs[pass]);
+	}
+	OutFlush(&l);
+
 	for (u32 i = 0; i < s_testCount; i++)
 	{
 		if (!s_tests[i].unstable)
