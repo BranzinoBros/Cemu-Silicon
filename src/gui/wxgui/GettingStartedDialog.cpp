@@ -10,6 +10,7 @@
 #include "config/ActiveSettings.h"
 #include "wxCemuConfig.h"
 #include "wxgui/CemuApp.h"
+#include "wxgui/CemuUpdateWindow.h"
 #include "wxgui/DownloadGraphicPacksWindow.h"
 #include "wxgui/GraphicPacksWindow2.h"
 #include "wxgui/input/InputSettings2.h"
@@ -177,6 +178,9 @@ wxPanel* GettingStartedDialog::CreatePage2()
 			m_page2.updateCheckbox->Disable();
 		} 
 #endif
+		// Cemu-Silicon has no update server yet, so hide the option. The hidden checkbox still loads and stores the config value
+		if (!CemuUpdateWindow::IsUpdaterEnabled())
+			m_page2.updateCheckbox->Hide();
 		sizer->Add(option_sizer, 1, wxEXPAND, 5);
 		page2_sizer->Add(sizer, 0, wxALL | wxEXPAND, 5);
 	}

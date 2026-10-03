@@ -127,7 +127,8 @@ endif()
 option(ENABLE_OPENGL "Enables the OpenGL backend" ${ENABLE_OPENGL_DEFAULT})
 option(ENABLE_VULKAN "Enables the Vulkan backend" ON)
 option(ENABLE_METAL "Enables the Metal backend" ${ENABLE_METAL_DEFAULT})
-option(ENABLE_DISCORD_RPC "Enables the Discord Rich Presence feature" ON)
+# off by default: Discord Rich Presence would show Cemu-Silicon as Cemu, using the Cemu team's Discord application id
+option(ENABLE_DISCORD_RPC "Enables the Discord Rich Presence feature" OFF)
 
 if (ENABLE_METAL AND NOT APPLE)
     message(FATAL_ERROR "Metal backend is only supported on Apple platforms")

@@ -94,6 +94,7 @@ struct wxCemuConfig
 	Vector2i pad_size{-1, -1};
 	ConfigValue<bool> pad_maximized;
 
+	// unused while Cemu-Silicon has no update server (see CemuUpdateWindow::IsUpdaterEnabled), kept so existing settings.xml files round-trip
 	ConfigValue<bool> check_update{true};
 	ConfigValue<bool> receive_untested_updates{false};
 	ConfigValue<bool> save_screenshot{true};

@@ -15,6 +15,10 @@ public:
 	CemuUpdateWindow(wxWindow* parent);
 	~CemuUpdateWindow();
 
+	// Cemu-Silicon has no update server yet. The upstream updater asks cemu.info, which would offer to
+	// replace this fork with official Cemu, so update checks stay off until the fork has its own server
+	static constexpr bool IsUpdaterEnabled() { return false; }
+
 	static std::future<bool> IsUpdateAvailableAsync();
 
 private:
