@@ -32,14 +32,9 @@
 #include <SDL3/SDL_main.h>
 #endif
 
-#if BOOST_OS_LINUX
-#define _putenv(__s) putenv((char*)(__s))
-#include <sys/sysinfo.h>
-#elif BOOST_OS_MACOS || BOOST_OS_BSD
 #define _putenv(__s) putenv((char*)(__s))
 #include <sys/types.h>
 #include <sys/sysctl.h>
-#endif
 
 std::atomic_bool g_isGPUInitFinished = false;
 
@@ -156,17 +151,8 @@ void HandlePostUpdate()
 
 void ToolShaderCacheMerger();
 
-int BreathOfTheWildChildProcessMain();
 int main(int argc, char *argv[])
 {
-#if BOOST_OS_LINUX && defined(ENABLE_VULKAN)
-	if (getenv("CEMU_DETECT_RADV") != nullptr)
-		return BreathOfTheWildChildProcessMain();
-#endif
-
-#if BOOST_OS_LINUX || BOOST_OS_BSD
-    XInitThreads();
-#endif
 	auto parse_rc = LaunchSettings::HandleCommandline(argc, argv);
   if (parse_rc.has_value())
 		return *parse_rc;

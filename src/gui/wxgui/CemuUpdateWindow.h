@@ -63,12 +63,7 @@ private:
 
 	void SubmitWorkerResult(Result newWorkerState);
 
-#if BOOST_OS_LINUX
-	bool WorkerThread_AppImage();
-#endif
-#if BOOST_OS_MACOS
 	bool WorkerThread_MacBundle();
-#endif
 
 
 	std::string m_downloadUrl, m_changelogUrl;

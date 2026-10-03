@@ -7,7 +7,6 @@ using namespace Latte;
 namespace LatteAddrLib
 {
 
-#if BOOST_OS_LINUX || BOOST_OS_MACOS || BOOST_OS_BSD
 	unsigned char _BitScanReverse(uint32* _Index, uint32 _Mask)
 	{
 		if (!_Mask)
@@ -15,7 +14,6 @@ namespace LatteAddrLib
 		*_Index = 31 - __builtin_clzl(_Mask);
 		return 1;
 	}
-#endif
 
 	static const uint32 bankSwapOrder[] = { 0, 1, 3, 2 };
 

@@ -1,9 +1,7 @@
 #include "cpu_features.h"
 
-#if BOOST_OS_MACOS
 #include <sys/types.h>
 #include <sys/sysctl.h>
-#endif
 
 // wrappers with uniform prototype for implementation-specific x86 CPU id
 #if defined(ARCH_X86_64)
@@ -31,7 +29,6 @@ inline void cpuidex(int cpuInfo[4], int functionId, int subFunctionId) {
 
 CPUFeaturesImpl::CPUFeaturesImpl()
 {
-#if BOOST_OS_MACOS
 	std::string cpuName;
 	size_t size = 0;
 
@@ -47,37 +44,6 @@ CPUFeaturesImpl::CPUFeaturesImpl()
 
 	strncpy(m_cpuBrandName, cpuName.c_str(), sizeof(m_cpuBrandName) - 1);
 	m_cpuBrandName[sizeof(m_cpuBrandName) - 1] = '\0';
-#elif defined(ARCH_X86_64)
-	int cpuInfo[4];
-	cpuid(cpuInfo, 0x80000001);
-	x86.lzcnt = ((cpuInfo[2] >> 5) & 1) != 0;
-	cpuid(cpuInfo, 0x1);
-	x86.movbe = ((cpuInfo[2] >> 22) & 1) != 0;
-	x86.avx = ((cpuInfo[2] >> 28) & 1) != 0;
-	x86.aesni = ((cpuInfo[2] >> 25) & 1) != 0;
-	x86.ssse3 = ((cpuInfo[2] >> 9) & 1) != 0;
-	x86.sse4_1 = ((cpuInfo[2] >> 19) & 1) != 0;
-	cpuidex(cpuInfo, 0x7, 0);
-	x86.avx2 = ((cpuInfo[1] >> 5) & 1) != 0;
-	x86.bmi2 = ((cpuInfo[1] >> 8) & 1) != 0;
-	cpuid(cpuInfo, 0x80000007);
-	x86.invariant_tsc = ((cpuInfo[3] >> 8) & 1);
-	// get CPU brand name
-	uint32_t nExIds, i = 0;
-	memset(m_cpuBrandName, 0, sizeof(m_cpuBrandName));
-	cpuid(cpuInfo, 0x80000000);
-	nExIds = (uint32_t)cpuInfo[0];
-	for (uint32_t i = 0x80000000; i <= nExIds; ++i)
-	{
-		cpuid(cpuInfo, i);
-		if (i == 0x80000002)
-			memcpy(m_cpuBrandName, cpuInfo, sizeof(cpuInfo));
-		else if (i == 0x80000003)
-			memcpy(m_cpuBrandName + 16, cpuInfo, sizeof(cpuInfo));
-		else if (i == 0x80000004)
-			memcpy(m_cpuBrandName + 32, cpuInfo, sizeof(cpuInfo));
-	}
-#endif
 }
 
 std::string CPUFeaturesImpl::GetCPUName()

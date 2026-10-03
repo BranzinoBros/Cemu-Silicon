@@ -67,12 +67,8 @@
 
 #include <time.h>
 
-#if BOOST_OS_LINUX
-#include <sys/sysinfo.h>
-#elif BOOST_OS_MACOS || BOOST_OS_BSD
 #include <sys/types.h>
 #include <sys/sysctl.h>
-#endif
 
 std::string _pathToExecutable;
 std::string _pathToBaseExecutable;
@@ -451,42 +447,17 @@ namespace CafeSystem
 		std::string cpuName = g_CPUFeatures.GetCPUName();
 		if (!cpuName.empty())
 			cemuLog_log(LogType::Force, "CPU: {}", cpuName);
-		#if BOOST_OS_LINUX
-		struct sysinfo info {};
-		sysinfo(&info);
-		cemuLog_log(LogType::Force, "RAM: {}MB", ((static_cast<uint64_t>(info.totalram) * info.mem_unit) / 1024LL / 1024LL));
-		#elif BOOST_OS_MACOS
 		int64_t totalRam;
 		size_t size = sizeof(totalRam);
 		int result = sysctlbyname("hw.memsize", &totalRam, &size, NULL, 0);
 		if (result == 0)
 			cemuLog_log(LogType::Force, "RAM: {}MB", (totalRam / 1024LL / 1024LL));
-		#elif BOOST_OS_BSD
-		int64_t totalRam;
-		size_t size = sizeof(totalRam);
-		int result = sysctlbyname("hw.physmem", &totalRam, &size, NULL, 0);
-		if (result == 0)
-			cemuLog_log(LogType::Force, "RAM: {}MB", (totalRam / 1024LL / 1024LL));
-		#endif
 	}
 
 	void logPlatformInfo()
 	{
 		std::string buffer;
 		const char* platform = NULL;
-		#if BOOST_OS_LINUX
-		if (getenv ("APPIMAGE"))
-			platform = "Linux (AppImage)";
-		else if (getenv ("SNAP"))
-			platform = "Linux (Snap)";
-		else if (platform = getenv ("container"))
-		{
-			if (strcmp (platform, "flatpak") == 0)
-				platform = "Linux (Flatpak)";
-		}
-		else
-			platform = "Linux";
-		#elif BOOST_OS_MACOS
 		char productVersion[256]{};
 		size_t productVersionSize = sizeof(productVersion);
 		const int productVersionResult = sysctlbyname("kern.osproductversion", productVersion, &productVersionSize, nullptr, 0);
@@ -504,17 +475,6 @@ namespace CafeSystem
 
 		platform = buffer.c_str();
 		
-		#elif BOOST_OS_BSD
-		#if defined(__FreeBSD__)
-		platform = "FreeBSD";
-		#elif defined(__OpenBSD__)
-		platform = "OpenBSD";
-		#elif defined(__NetBSD__)
-		platform = "NetBSD";
-		#else
-		platform = "Unknown BSD";
-		#endif
-		#endif
 		cemuLog_log(LogType::Force, "Platform: {}", platform);
 	}
 

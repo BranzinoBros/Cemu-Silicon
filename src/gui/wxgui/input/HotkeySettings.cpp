@@ -9,9 +9,7 @@
 #include <wx/app.h>
 #include <wx/clipbrd.h>
 
-#if BOOST_OS_LINUX || BOOST_OS_MACOS || BOOST_OS_BSD
 #include "resource/embedded/resources.h"
-#endif
 
 std::optional<fs::path> GenerateScreenshotFilename(bool isDRC)
 {

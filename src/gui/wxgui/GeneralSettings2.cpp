@@ -206,18 +206,8 @@ wxPanel* GeneralSettings2::AddGeneralPage(wxNotebook* notebook)
 			third_row->Add(m_disable_screensaver, 0, botflag, 5);
 			CountRowElement();
 
-			// enable/disable feral interactive gamemode
-#if BOOST_OS_LINUX && defined(ENABLE_FERAL_GAMEMODE)
-			m_feral_gamemode = new wxCheckBox(box, wxID_ANY, _("Enable Feral GameMode"));
-			m_feral_gamemode->SetToolTip(_("Use FeralInteractive GameMode if installed."));
-			third_row->Add(m_feral_gamemode, 0, botflag, 5);
-			CountRowElement();
-#endif
-
 			// temporary workaround because feature crashes on macOS
-#if BOOST_OS_MACOS
 			m_disable_screensaver->Enable(false);
-#endif
 			m_play_boot_sound = new wxCheckBox(box, wxID_ANY, _("Enable intro sound"));
 			m_play_boot_sound->SetToolTip(_("Play bootSound file while compiling shaders/pipelines."));
 			third_row->Add(m_play_boot_sound, 0, botflag, 5);
@@ -231,13 +221,6 @@ wxPanel* GeneralSettings2::AddGeneralPage(wxNotebook* notebook)
 			m_receive_untested_releases = new wxCheckBox(box, wxID_ANY, _("Receive untested updates"));
 			m_receive_untested_releases->SetToolTip(_("When checking for updates, include brand new and untested releases. These may contain bugs!"));
 			third_row->Add(m_receive_untested_releases, 0, botflag, 5);
-#if BOOST_OS_LINUX
-			if (!std::getenv("APPIMAGE")) {
-				m_auto_update->Disable();
-			}
-#elif BOOST_OS_BSD // BSD users must update from source so disable auto updates
-			m_auto_update->Disable();
-#endif
 
 			box_sizer->Add(third_row, 0, wxEXPAND, 5);
 		}
@@ -953,14 +936,10 @@ wxPanel* GeneralSettings2::AddDebugPage(wxNotebook* notebook)
 
 		debug_row->Add(new wxStaticText(panel, wxID_ANY, _("Crash dump")), 0, wxALIGN_CENTER_VERTICAL | wxALL, 5);
 
-#if BOOST_OS_UNIX
 		wxString dump_choices[] = {_("Disabled"), _("Enabled")};
-#endif
 		m_crash_dump = new wxChoice(panel, wxID_ANY, wxDefaultPosition, wxDefaultSize, std::size(dump_choices), dump_choices);
 		m_crash_dump->SetSelection(0);
-#if BOOST_OS_UNIX
 		m_crash_dump->SetToolTip(_("Creates a core dump when Cemu crashes\nOnly enable when requested by a developer!"));
-#endif
 		debug_row->Add(m_crash_dump, 0, wxALL | wxEXPAND, 5);
 		debug_panel_sizer->Add(debug_row, 0, wxALL | wxEXPAND, 5);
 	}
@@ -1068,9 +1047,6 @@ void GeneralSettings2::StoreConfig()
 	wxGuiConfig.check_update = m_auto_update->IsChecked();
 	wxGuiConfig.save_screenshot = m_save_screenshot->IsChecked();
 	wxGuiConfig.receive_untested_updates = m_receive_untested_releases->IsChecked();
-#if BOOST_OS_LINUX && defined(ENABLE_FERAL_GAMEMODE)
-    wxGuiConfig.feral_gamemode = m_feral_gamemode->IsChecked();
-#endif
 	config.play_boot_sound = m_play_boot_sound->IsChecked();
 	config.disable_screensaver = m_disable_screensaver->IsChecked();
 	// toggle while a game is running
@@ -1820,13 +1796,8 @@ void GeneralSettings2::ApplyConfig()
 
 	m_disable_screensaver->SetValue(config.disable_screensaver);
 	m_play_boot_sound->SetValue(config.play_boot_sound);
-#if BOOST_OS_LINUX && defined(ENABLE_FERAL_GAMEMODE)
-    	m_feral_gamemode->SetValue(wxGUIconfig.feral_gamemode);
-#endif
 	// temporary workaround because feature crashes on macOS
-#if BOOST_OS_MACOS
 	m_disable_screensaver->SetValue(false);
-#endif
 
 	m_game_paths->Clear();
 	for (auto& path : config.game_paths)

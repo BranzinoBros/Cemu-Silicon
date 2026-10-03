@@ -18,13 +18,6 @@
 #include "wxgui/debugger/DebuggerWindow2.h"
 #include <wx/language.h>
 
-#if ( BOOST_OS_LINUX || BOOST_OS_BSD ) && HAS_WAYLAND
-#include "wxgui/helpers/wxWayland.h"
-#endif
-#if __WXGTK__
-#include <glib.h>
-#endif
-
 #include <wx/image.h>
 #include <wx/filename.h>
 #include <wx/stdpaths.h>
@@ -69,55 +62,6 @@ void unused_translation_dummy()
 	void(_("unknown"));
 }
 
-#if BOOST_OS_LINUX || BOOST_OS_BSD
-void CemuApp::DeterminePaths(std::set<fs::path>& failedWriteAccess) // for Linux
-{
-	std::error_code ec;
-	bool isPortable = false;
-	fs::path user_data_path, config_path, cache_path, data_path;
-	auto standardPaths = wxStandardPaths::Get();
-	fs::path exePath(wxHelper::MakeFSPath(standardPaths.GetExecutablePath()));
-	fs::path portablePath = exePath.parent_path() / "portable";
-	// GetExecutablePath returns the AppImage's temporary mount location
-	wxString appImagePath;
-	if (wxGetEnv("APPIMAGE", &appImagePath))
-	{
-		exePath = wxHelper::MakeFSPath(appImagePath);
-		portablePath = exePath.parent_path() / "portable";
-	}
-#ifdef CEMU_ALLOW_PORTABLE
-	if (fs::is_directory(portablePath, ec))
-	{
-		isPortable = true;
-		user_data_path = config_path = cache_path = portablePath;
-		// in portable mode assume the data directories (resources, gameProfiles/default/) are next to the executable
-		data_path = exePath.parent_path();
-	}
-	else
-#endif
-	{
-		SetAppName("Cemu");
-		wxString appName = GetAppName();
-		standardPaths.SetFileLayout(wxStandardPaths::FileLayout::FileLayout_XDG);
-		auto getEnvDir = [&](const wxString& varName, const wxString& defaultValue)
-		{
-			wxString dir;
-			if (!wxGetEnv(varName, &dir) || dir.empty())
-				return defaultValue;
-			return dir;
-		};
-		wxString homeDir = wxFileName::GetHomeDir();
-		user_data_path = (getEnvDir(wxS("XDG_DATA_HOME"), homeDir + wxS("/.local/share")) + "/" + appName).ToStdString();
-		config_path = (getEnvDir(wxS("XDG_CONFIG_HOME"), homeDir + wxS("/.config")) + "/" + appName).ToStdString();
-		data_path = standardPaths.GetDataDir().ToStdString();
-		cache_path = standardPaths.GetUserDir(wxStandardPaths::Dir::Dir_Cache).ToStdString();
-		cache_path /= appName.ToStdString();
-	}
-	ActiveSettings::SetPaths(isPortable, exePath, user_data_path, config_path, cache_path, data_path, failedWriteAccess);
-}
-#endif
-
-#if BOOST_OS_MACOS
 void CemuApp::DeterminePaths(std::set<fs::path>& failedWriteAccess) // for MacOS
 {
 	std::error_code ec;
@@ -147,7 +91,6 @@ void CemuApp::DeterminePaths(std::set<fs::path>& failedWriteAccess) // for MacOS
 	}
 	ActiveSettings::SetPaths(isPortable, exePath, user_data_path, config_path, cache_path, data_path, failedWriteAccess);
 }
-#endif
 
 // create default MLC files or quit if it fails
 void CemuApp::InitializeNewMLCOrFail(fs::path mlc)
@@ -209,9 +152,6 @@ std::string TranslationCallback(std::string_view msgId)
 
 bool CemuApp::OnInit()
 {
-#if __WXGTK__
-	GTKSuppressDiagnostics(G_LOG_LEVEL_MASK & ~G_LOG_FLAG_FATAL);
-#endif
 	std::set<fs::path> failedWriteAccess;
 	DeterminePaths(failedWriteAccess);
 	// make sure default cemu directories exist
@@ -269,16 +209,12 @@ bool CemuApp::OnInit()
 	UnitTests();
 #endif
 
-#if BOOST_OS_MACOS
 	SDLControllerProvider::InitSDL();
-#endif
 	CemuCommonInit();
 
-#if BOOST_OS_MACOS
 	m_sdlEventPumpTimer = new wxTimer(this);
 	Bind(wxEVT_TIMER, &CemuApp::OnSDLEventPumpTimer, this);
 	m_sdlEventPumpTimer->Start(5, wxTIMER_CONTINUOUS);
-#endif
 
 	wxInitAllImageHandlers();
 
@@ -302,17 +238,11 @@ bool CemuApp::OnInit()
 	SetTopWindow(m_mainFrame);
 	m_mainFrame->Show();
 
-#if ( BOOST_OS_LINUX || BOOST_OS_BSD ) && HAS_WAYLAND
-	if (wxWlIsWaylandWindow(m_mainFrame))
-		wxWlSetAppId(m_mainFrame, "info.cemu.Cemu");
-#endif
-
 	return true;
 }
 
 int CemuApp::OnExit()
 {
-#if BOOST_OS_MACOS
 	if (m_sdlEventPumpTimer)
 	{
 		m_sdlEventPumpTimer->Stop();
@@ -320,39 +250,29 @@ int CemuApp::OnExit()
 		delete m_sdlEventPumpTimer;
 		m_sdlEventPumpTimer = nullptr;
 	}
-#endif
 	wxApp::OnExit();
 	wxTheClipboard->Flush();
 	InputManager::instance().Shutdown();
 	int retValue = 0;
 	if (auto r = CafeSystem::GetForegroundTitleReturnStatus(); (LaunchSettings::GetLoadFile() || LaunchSettings::GetLoadTitleID()) && r)
 		retValue = *r;
-#if BOOST_OS_MACOS
 	SDLControllerProvider::ShutdownSDL();
-#endif
 	// handle restart if requested
 	if (m_restartExecutable.has_value() && !m_restartExecutable->empty() && fs::exists(*m_restartExecutable))
 	{
 		fs::path restartPath = *m_restartExecutable;
-#if BOOST_OS_LINUX
 		std::string appPath = _pathToUtf8(restartPath);
 		execlp(appPath.c_str(), appPath.c_str(), (char *)NULL);
-#elif BOOST_OS_MACOS
-		std::string appPath = _pathToUtf8(restartPath);
-		execlp(appPath.c_str(), appPath.c_str(), (char *)NULL);
-#endif
 	}
 	_Exit(retValue);
 }
 
-#if BOOST_OS_MACOS
 void CemuApp::OnSDLEventPumpTimer(wxTimerEvent& event)
 {
 	// this callback is only used on macOS where SDL event functions need to be called on the main thread
 	// on other platforms SDLControllerProvider creates a separate thread for SDL event polling
 	SDLControllerProvider::PumpSDLEvents();
 }
-#endif
 
 void CemuApp::OnAssertFailure(const wxChar* file, int line, const wxChar* func, const wxChar* cond, const wxChar* msg)
 {

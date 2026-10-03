@@ -188,16 +188,6 @@ void InputAPIAddWindow::on_api_selected(wxCommandEvent& event)
 			m_controller_list->SetSelection(index);
 		}
 	}
-    else
-    {
-#if BOOST_OS_LINUX || BOOST_OS_BSD
-        // We rely on the wxEVT_COMBOBOX_DROPDOWN event to trigger filling the controller list,
-        // but on wxGTK the dropdown button cannot be clicked if the list is empty
-        // so as a quick and dirty workaround we fill the list here
-        wxCommandEvent tmpCmdEvt;
-        on_controller_dropdown(tmpCmdEvt);
-#endif
-    }
 
 	const auto show_settings = has_custom_settings();
 	// dsu has special settings for ip/port

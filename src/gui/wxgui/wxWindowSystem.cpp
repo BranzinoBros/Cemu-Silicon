@@ -3,20 +3,7 @@
 
 #include "helpers/wxHelpers.h"
 
-#if BOOST_OS_LINUX || BOOST_OS_BSD
-#include <gdk/gdkkeysyms.h>
-#include <gtk/gtk.h>
-#include <gdk/gdk.h>
-#include <gdk/gdkwindow.h>
-#include <gdk/gdkx.h>
-#ifdef HAS_WAYLAND
-#include <gdk/gdkwayland.h>
-#endif
-#endif
-
-#if BOOST_OS_MACOS
 #include <Carbon/Carbon.h>
-#endif
 
 #include "wxgui/wxgui.h"
 #include "wxgui/CemuApp.h"
@@ -206,20 +193,6 @@ bool WindowSystem::IsKeyDown(PlatformKeyCodes platformKey)
 
 	switch (platformKey)
 	{
-#if BOOST_OS_LINUX || BOOST_OS_BSD
-	case PlatformKeyCodes::LCONTROL:
-		key = GDK_KEY_Control_L;
-		break;
-	case PlatformKeyCodes::RCONTROL:
-		key = GDK_KEY_Control_R;
-		break;
-	case PlatformKeyCodes::TAB:
-		key = GDK_KEY_Tab;
-		break;
-	case PlatformKeyCodes::ESCAPE:
-		key = GDK_KEY_Escape;
-		break;
-#elif BOOST_OS_MACOS
 	case PlatformKeyCodes::LCONTROL:
 		key = kVK_Control;
 		break;
@@ -232,7 +205,6 @@ bool WindowSystem::IsKeyDown(PlatformKeyCodes platformKey)
 	case PlatformKeyCodes::ESCAPE:
 		key = kVK_Escape;
 		break;
-#endif
 	default:
 		return false;
 	}
@@ -242,11 +214,7 @@ bool WindowSystem::IsKeyDown(PlatformKeyCodes platformKey)
 
 std::string WindowSystem::GetKeyCodeName(uint32 button)
 {
-#if BOOST_OS_LINUX || BOOST_OS_BSD
-	return gdk_keyval_name(button);
-#else
 	return fmt::format("key_{}", button);
-#endif
 }
 
 bool WindowSystem::InputConfigWindowHasFocus()

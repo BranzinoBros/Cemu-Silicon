@@ -1372,41 +1372,12 @@ namespace coreinit
 		}
 	}
 
-#if BOOST_OS_LINUX
-	#include <unistd.h>
-	#include <sys/prctl.h>
-
-	std::vector<pid_t> g_schedulerThreadIds;
-	std::mutex g_schedulerThreadIdsLock;
-
-	std::vector<pid_t>& OSGetSchedulerThreadIds()
-	{
-		std::lock_guard schedulerThreadIdsLockGuard(g_schedulerThreadIdsLock);
-		return g_schedulerThreadIds;
-	}
-#endif
-
 	void OSSchedulerCoreEmulationThread(void* _assignedCoreIndex)
 	{
 		SetThreadName(fmt::format("OSSched[core={}]", (uintptr_t)_assignedCoreIndex).c_str());
 		t_assignedCoreIndex = (sint32)(uintptr_t)_assignedCoreIndex;
 
 		enableFlushDenormalsToZero();
-
-#if BOOST_OS_LINUX
-		if (g_gdbstub)
-		{
-			// need to allow the GDBStub to attach to our thread
-			prctl(PR_SET_DUMPABLE, (unsigned long)1);
-			prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY);
-		}
-
-		pid_t tid = gettid();
-		{
-			std::lock_guard schedulerThreadIdsLockGuard(g_schedulerThreadIdsLock);
-			g_schedulerThreadIds.emplace_back(tid);
-		}
-#endif
 
 		t_schedulerFiber = Fiber::PrepareCurrentThread();
 
@@ -1459,12 +1430,6 @@ namespace coreinit
 			threadItr.join();
 		sSchedulerThreads.clear();
 		g_schedulerThreadHandles.clear();
-#if BOOST_OS_LINUX
-		{
-			std::lock_guard schedulerThreadIdsLockGuard(g_schedulerThreadIdsLock);
-			g_schedulerThreadIds.clear();
-		}
-#endif
 		// clean up all fibers
 		for (auto& it : g_idleLoopFiber)
 		{

@@ -3,11 +3,6 @@
 #include "nn_ac.h"
 #include "Common/socket.h"
 
-#if BOOST_OS_LINUX
-#include <ifaddrs.h>
-#include <net/if.h>
-#endif
-
 // AC lib (manages internet connection)
 
 enum class AC_STATUS : uint32
@@ -25,47 +20,11 @@ void _GetLocalIPAndSubnetMaskFallback(uint32& localIp, uint32& subnetMask)
 	subnetMask = (255 << 24) | (255 << 16) | (255 << 8) | (0 << 0);
 }
 
-#if BOOST_OS_LINUX
-void _GetLocalIPAndSubnetMask(uint32& localIp, uint32& subnetMask)
-{
-	struct ifaddrs *ifaddr;
-	if (getifaddrs(&ifaddr) == -1)
-	{
-		cemuLog_log(LogType::Force, "Failed to acquire local IP and subnet mask");
-		_GetLocalIPAndSubnetMaskFallback(localIp, subnetMask);
-	}
-	stdx::scope_exit _ifa([&]{ freeifaddrs(ifaddr); });
-
-	for (const struct ifaddrs* ifa = ifaddr; ifa != nullptr; ifa = ifa->ifa_next)
-	{
-		if (ifa->ifa_addr == nullptr || ifa->ifa_addr->sa_family != AF_INET)
-			continue;
-
-		if (!(ifa->ifa_flags & IFF_UP) || !(ifa->ifa_flags & IFF_RUNNING))
-			continue;
-
-		if (ifa->ifa_flags & IFF_LOOPBACK || ifa->ifa_flags & IFF_POINTOPOINT)
-			continue;
-
-		if (boost::starts_with(ifa->ifa_name, "br-") || boost::starts_with(ifa->ifa_name, "docker"))
-			continue;
-
-		const auto* addr_in = reinterpret_cast<struct sockaddr_in*>(ifa->ifa_addr);
-		localIp = ntohl(addr_in->sin_addr.s_addr);
-		const auto* mask_in = reinterpret_cast<struct sockaddr_in*>(ifa->ifa_netmask);
-		subnetMask = ntohl(mask_in->sin_addr.s_addr);
-		return;
-	}
-	cemuLog_logDebug(LogType::Force, "_GetLocalIPAndSubnetMask(): Failed to find network IP and subnet mask");
-	_GetLocalIPAndSubnetMaskFallback(localIp, subnetMask);
-}
-#else
 void _GetLocalIPAndSubnetMask(uint32& localIp, uint32& subnetMask)
 {
 	cemuLog_logDebug(LogType::Force, "_GetLocalIPAndSubnetMask(): Not implemented");
 	_GetLocalIPAndSubnetMaskFallback(localIp, subnetMask);
 }
-#endif
 
 void nnAcExport_GetAssignedAddress(PPCInterpreter_t* hCPU)
 {

@@ -267,9 +267,7 @@ XMLConfigParser CemuConfig::Load(XMLConfigParser& parser)
 	}
 	// debug
 	auto debug = parser.get("Debug");
-#if BOOST_OS_UNIX
 	crash_dump = debug.get("CrashDumpUnix", crash_dump);
-#endif
 	gdb_port = debug.get("GDBPort", 1337);
 #ifdef ENABLE_METAL
 	gpu_capture_dir = debug.get("GPUCaptureDir", "");
@@ -430,9 +428,7 @@ XMLConfigParser CemuConfig::Save(XMLConfigParser& parser)
 	}
 	// debug
 	auto debug = config.set("Debug");
-#if BOOST_OS_UNIX
 	debug.set("CrashDumpUnix", crash_dump.GetValue());
-#endif
 	debug.set("GDBPort", gdb_port);
 #ifdef ENABLE_METAL
 	debug.set("GPUCaptureDir", gpu_capture_dir);

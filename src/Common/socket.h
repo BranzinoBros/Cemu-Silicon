@@ -1,7 +1,5 @@
 #pragma once
 
-#if BOOST_OS_UNIX
-
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
@@ -23,4 +21,3 @@
 #define SOCKET_ERROR -1
 #define INVALID_SOCKET -1
 
-#endif // BOOST_OS_UNIX

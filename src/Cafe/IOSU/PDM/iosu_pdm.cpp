@@ -5,14 +5,7 @@
 #include "Common/FileStream.h"
 #include "util/helpers/Semaphore.h"
 
-#if BOOST_OS_LINUX
-// using chrono::year_month_date and other features require a relatively recent stdlibc++
-// to avoid upping the required version we use the STL reference implementation for now
-#include "Common/unix/date.h"
-namespace chrono_d = date;
-#else
 namespace chrono_d = std::chrono;
-#endif
 
 
 namespace iosu

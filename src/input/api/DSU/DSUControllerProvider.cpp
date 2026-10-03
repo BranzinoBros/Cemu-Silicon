@@ -1,10 +1,8 @@
 #include "input/api/DSU/DSUControllerProvider.h"
 #include "input/api/DSU/DSUController.h"
 
-#if BOOST_OS_LINUX || BOOST_OS_MACOS
 #include <sys/time.h>
 #include <sys/socket.h>
-#endif
 
 DSUControllerProvider::DSUControllerProvider()
 	: base_type(), m_uid(rand()), m_socket(m_io_service)

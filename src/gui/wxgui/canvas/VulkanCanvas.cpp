@@ -1,10 +1,6 @@
 #include "wxgui/canvas/VulkanCanvas.h"
 #include "Cafe/HW/Latte/Renderer/Vulkan/VulkanRenderer.h"
 
-#if ( BOOST_OS_LINUX || BOOST_OS_BSD ) && HAS_WAYLAND
-#include "wxgui/helpers/wxWayland.h"
-#endif
-
 #include <wx/msgdlg.h>
 #include <helpers/wxHelpers.h>
 
@@ -16,13 +12,6 @@ VulkanCanvas::VulkanCanvas(wxWindow* parent, const wxSize& size, bool is_main_wi
 
 	auto& canvas = is_main_window ? WindowSystem::GetWindowInfo().canvas_main : WindowSystem::GetWindowInfo().canvas_pad;
 	canvas = initHandleContextFromWxWidgetsWindow(this);
-	#if ( BOOST_OS_LINUX || BOOST_OS_BSD ) && HAS_WAYLAND
-	if (canvas.backend == WindowSystem::WindowHandleInfo::Backend::Wayland)
-	{
-		m_subsurface = std::make_unique<wxWlSubsurface>(this);
-		canvas.surface = m_subsurface->getSurface();
-	}
-	#endif
 
 	cemu_assert(g_vulkan_available);
 
@@ -68,14 +57,6 @@ void VulkanCanvas::OnResize(wxSizeEvent& event)
 	const wxSize size = GetSize();
 	if (size.GetWidth() == 0 || size.GetHeight() == 0)
 		return;
-
-#if ( BOOST_OS_LINUX || BOOST_OS_BSD ) && HAS_WAYLAND
-	if(m_subsurface)
-	{
-		auto sRect = GetScreenRect();
-		m_subsurface->setSize(sRect.GetX(), sRect.GetY(), sRect.GetWidth(), sRect.GetHeight());
-	}
-#endif
 
 	const wxRect refreshRect(size);
 	RefreshRect(refreshRect, false);

@@ -66,8 +66,6 @@ add_library(CemuWxGui STATIC
   helpers/wxHelpers.cpp
   helpers/wxHelpers.h
   helpers/wxLogEvent.h
-  helpers/wxWayland.cpp
-  helpers/wxWayland.h
   input/HotkeySettings.cpp
   input/HotkeySettings.h
   input/InputAPIAddWindow.cpp

@@ -2,19 +2,7 @@
 
 HighResolutionTimer HighResolutionTimer::now()
 {
-#if BOOST_OS_LINUX
-    timespec pc;
-    clock_gettime(CLOCK_MONOTONIC_RAW, &pc);
-    uint64 nsec = (uint64)pc.tv_sec * (uint64)1000000000 + (uint64)pc.tv_nsec;
-    return HighResolutionTimer(nsec);
-#elif BOOST_OS_MACOS
 	return HighResolutionTimer(clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW));
-#elif BOOST_OS_BSD
-    timespec pc;
-    clock_gettime(CLOCK_MONOTONIC, &pc);
-    uint64 nsec = (uint64)pc.tv_sec * (uint64)1000000000 + (uint64)pc.tv_nsec;
-    return HighResolutionTimer(nsec);
-#endif
 }
 
 HRTick HighResolutionTimer::getFrequency()
@@ -23,17 +11,7 @@ HRTick HighResolutionTimer::getFrequency()
 }
 
 uint64 HighResolutionTimer::m_freq = []() -> uint64 {
-#if BOOST_OS_MACOS
 	return 1000000000;
-#elif BOOST_OS_BSD
-	timespec pc;
-	clock_getres(CLOCK_MONOTONIC, &pc);
-	return (uint64)1000000000 / (uint64)pc.tv_nsec;
-#else
-    timespec pc;
-    clock_getres(CLOCK_MONOTONIC_RAW, &pc);
-    return (uint64)1000000000 / (uint64)pc.tv_nsec;
-#endif
 }();
 
 struct FrameBenchmarkHelper::Entry

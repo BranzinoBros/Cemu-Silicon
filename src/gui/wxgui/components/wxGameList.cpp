@@ -1403,86 +1403,6 @@ void wxGameList::DeleteCachedStrings()
 	m_name_cache.clear();
 }
 
-#if BOOST_OS_LINUX || BOOST_OS_BSD
-void wxGameList::CreateShortcut(GameInfo2& gameInfo)
-{
-	const auto titleId = gameInfo.GetBaseTitleId();
-	const auto titleName = wxString::FromUTF8(gameInfo.GetTitleName());
-	auto exePath = ActiveSettings::GetExecutablePath();
-	const char* flatpakId = getenv("FLATPAK_ID");
-
-	const wxString desktopEntryName = wxString::Format("%s.desktop", titleName);
-	wxFileDialog entryDialog(this, _("Choose desktop entry location"), "~/.local/share/applications", desktopEntryName,
-							 "Desktop file (*.desktop)|*.desktop", wxFD_SAVE | wxFD_CHANGE_DIR | wxFD_OVERWRITE_PROMPT);
-	const auto result = entryDialog.ShowModal();
-	if (result == wxID_CANCEL)
-		return;
-	const auto output_path = entryDialog.GetPath();
-
-	std::optional<fs::path> iconPath;
-	// Obtain and convert icon
-	[&]()
-	{
-		int iconIdx, smallIconIdx;
-
-		if (!QueryIconForTitle(titleId, iconIdx, smallIconIdx))
-		{
-			cemuLog_log(LogType::Force, "Icon hasn't loaded");
-			return;
-		}
-		const fs::path outIconDir = ActiveSettings::GetUserDataPath("icons");
-
-		if (!fs::exists(outIconDir) && !fs::create_directories(outIconDir))
-		{
-			cemuLog_log(LogType::Force, "Failed to create icon directory");
-			return;
-		}
-
-		iconPath = outIconDir / fmt::format("{:016x}.png", gameInfo.GetBaseTitleId());
-		wxFileOutputStream pngFileStream(_pathToUtf8(iconPath.value()));
-
-		const auto icon = m_image_list_data.GetIcon(iconIdx);
-		wxBitmap bitmap{icon};
-		wxImage image = bitmap.ConvertToImage();
-		wxPNGHandler pngHandler;
-		if (!pngHandler.SaveFile(&image, pngFileStream, false))
-		{
-			iconPath = std::nullopt;
-			cemuLog_log(LogType::Force, "Icon failed to save");
-		}
-	}();
-
-	std::string desktopExecEntry = flatpakId ? fmt::format("/usr/bin/flatpak run {0} --title-id {1:016x}", flatpakId, titleId)
-											 : fmt::format("{0:?} --title-id {1:016x}", _pathToUtf8(exePath), titleId);
-
-	// 'Icon' accepts spaces in file name, does not accept quoted file paths
-	// 'Exec' does not accept non-escaped spaces, and can accept quoted file paths
-	auto desktopEntryString = fmt::format(
-		"[Desktop Entry]\n"
-		"Name={0}\n"
-		"Comment=Play {0} on Cemu\n"
-		"Exec={1}\n"
-		"Icon={2}\n"
-		"Terminal=false\n"
-		"Type=Application\n"
-		"Categories=Game;\n",
-		titleName.utf8_string(),
-		desktopExecEntry,
-		_pathToUtf8(iconPath.value_or("")));
-
-	if (flatpakId)
-		desktopEntryString += fmt::format("X-Flatpak={}\n", flatpakId);
-
-	std::ofstream outputStream(output_path.utf8_string());
-	if (!outputStream.good())
-	{
-		auto errorMsg = formatWxString(_("Failed to save desktop entry to {}"), output_path.utf8_string());
-		wxMessageBox(errorMsg, _("Error"), wxOK | wxCENTRE | wxICON_ERROR);
-		return;
-	}
-	outputStream << desktopEntryString;
-}
-#elif BOOST_OS_MACOS
 void wxGameList::CreateShortcut(GameInfo2& gameInfo)
 {
 	const auto titleId = gameInfo.GetBaseTitleId();
@@ -1613,4 +1533,3 @@ void wxGameList::CreateShortcut(GameInfo2& gameInfo)
 	// Remove temp file
 	fs::remove(*iconPath);
 }
-#endif

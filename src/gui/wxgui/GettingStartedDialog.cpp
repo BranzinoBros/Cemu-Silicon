@@ -17,9 +17,7 @@
 
 #include "Cafe/TitleList/TitleList.h"
 
-#if BOOST_OS_LINUX || BOOST_OS_MACOS || BOOST_OS_BSD
 #include "resource/embedded/resources.h"
-#endif
 
 #include "wxHelper.h"
 
@@ -172,11 +170,6 @@ wxPanel* GettingStartedDialog::CreatePage2()
 
 		m_page2.updateCheckbox = new wxCheckBox(sizer->GetStaticBox(), wxID_ANY, _("Automatically check for updates"));
 		option_sizer->Add(m_page2.updateCheckbox, 0, wxALL, 5);
-#if BOOST_OS_LINUX 
-		if (!std::getenv("APPIMAGE")) {
-			m_page2.updateCheckbox->Disable();
-		} 
-#endif
 		sizer->Add(option_sizer, 1, wxEXPAND, 5);
 		page2_sizer->Add(sizer, 0, wxALL | wxEXPAND, 5);
 	}

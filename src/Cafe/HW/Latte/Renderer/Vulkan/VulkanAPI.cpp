@@ -3,9 +3,7 @@
 #include "Cafe/HW/Latte/Renderer/Vulkan/VulkanAPI.h"
 #include <numeric> // for std::iota
 
-#if BOOST_OS_LINUX || BOOST_OS_MACOS || BOOST_OS_BSD
 #include <dlfcn.h>
-#endif
 
 #define VULKAN_API_CPU_BENCHMARK 0	// if 1, Cemu will log the CPU time spent per Vulkan API function
 
@@ -86,13 +84,7 @@ void VulkanBenchmarkPrintResults()
 
 void* dlopen_vulkan_loader()
 {
-#if BOOST_OS_LINUX || BOOST_OS_BSD
-	void* vulkan_so = dlopen("libvulkan.so", RTLD_NOW);
-	if(!vulkan_so)
-		vulkan_so = dlopen("libvulkan.so.1", RTLD_NOW);
-#elif BOOST_OS_MACOS
 	void* vulkan_so = dlopen("libMoltenVK.dylib", RTLD_NOW);
-#endif
 	return vulkan_so;
 }
 

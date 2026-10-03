@@ -148,47 +148,17 @@ inline std::string _tr(fmt::format_string<TArgs...> text, TArgs... args)
 
 inline uint64 _swapEndianU64(uint64 v)
 {
-#if BOOST_OS_MACOS
     return OSSwapInt64(v);
-#elif BOOST_OS_BSD
-#ifdef __OpenBSD__
-    return swap64(v);
-#else // FreeBSD and NetBSD
-    return bswap64(v);
-#endif
-#else
-    return bswap_64(v);
-#endif
 }
 
 inline uint32 _swapEndianU32(uint32 v)
 {
-#if BOOST_OS_MACOS
     return OSSwapInt32(v);
-#elif BOOST_OS_BSD
-#ifdef __OpenBSD__
-    return swap32(v);
-#else // FreeBSD and NetBSD
-    return bswap32(v);
-#endif
-#else
-    return bswap_32(v);
-#endif
 }
 
 inline sint32 _swapEndianS32(sint32 v)
 {
-#if BOOST_OS_MACOS
     return (sint32)OSSwapInt32((uint32)v);
-#elif BOOST_OS_BSD
-#ifdef __OpenBSD__
-    return (sint32)swap32((uint32)v);
-#else // FreeBSD and NetBSD
-    return (sint32)bswap32((uint32)v);
-#endif
-#else
-    return (sint32)bswap_32((uint32)v);
-#endif
 }
 
 inline uint16 _swapEndianU16(uint16 v)
@@ -428,20 +398,8 @@ bool match_any_of(T1&& value, Types&&... others)
 
 [[nodiscard]] static std::chrono::steady_clock::time_point tick_cached() noexcept
 {
-#if BOOST_OS_LINUX
-	struct timespec tp;
-	clock_gettime(CLOCK_MONOTONIC_RAW, &tp);
-	return std::chrono::steady_clock::time_point(
-		std::chrono::seconds(tp.tv_sec) + std::chrono::nanoseconds(tp.tv_nsec));
-#elif BOOST_OS_MACOS
 	return std::chrono::steady_clock::time_point(
 		std::chrono::nanoseconds(clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW)));
-#elif BOOST_OS_BSD
-	struct timespec tp;
-	clock_gettime(CLOCK_MONOTONIC, &tp);
-	return std::chrono::steady_clock::time_point(
-		std::chrono::seconds(tp.tv_sec) + std::chrono::nanoseconds(tp.tv_nsec));
-#endif
 }
 
 // Some string conversion helpers because C++20 std::u8string is too cumbersome to use in practice

@@ -21,10 +21,6 @@
 #include "wxgui/input/InputAPIAddWindow.h"
 #include "input/ControllerFactory.h"
 
-#ifdef HAS_BLUEZ
-#include "wxgui/input/PairingDialog.h"
-#endif
-
 #include "wxgui/input/panels/VPADInputPanel.h"
 #include "wxgui/input/panels/ProControllerInputPanel.h"
 
@@ -152,15 +148,6 @@ wxWindow* InputSettings2::initialize_page(size_t index)
 		auto* profiles = new wxComboBox(page, wxID_ANY, kDefaultProfileName);
 		sizer->Add(profiles, wxGBPosition(0, 1), wxDefaultSpan, wxALIGN_CENTER_VERTICAL | wxALL | wxEXPAND, 5);
 
-#if BOOST_OS_LINUX || BOOST_OS_BSD
-		// We rely on the wxEVT_COMBOBOX_DROPDOWN event to trigger filling the profile list,
-		// but on wxGTK the dropdown button cannot be clicked if the list is empty
-		// so as a quick and dirty workaround we fill the list here
-		wxCommandEvent tmpCmdEvt;
-		tmpCmdEvt.SetEventObject(profiles);
-		on_profile_dropdown(tmpCmdEvt);
-#endif
-
 		if (emulated_controller && emulated_controller->has_profile_name())
 		{
 			profiles->SetValue(emulated_controller->get_profile_name());
@@ -256,15 +243,6 @@ wxWindow* InputSettings2::initialize_page(size_t index)
 			page_data.m_controller_api_add = add_api;
 			page_data.m_controller_api_remove = remove_api;
 		}
-
-#ifdef HAS_BLUEZ
-		auto* pairingDialog = new wxButton(page, wxID_ANY, _("Pair Wii/Wii U Controller"));
-		pairingDialog->Bind(wxEVT_BUTTON, [this](wxEvent&) {
-			PairingDialog pairing_dialog(this);
-			pairing_dialog.ShowModal();
-		});
-		sizer->Add(pairingDialog, wxGBPosition(5, 0), wxDefaultSpan, wxALIGN_CENTER_VERTICAL | wxALL, 5);
-#endif
 
 		// controller
 		auto* controller_bttns = new wxBoxSizer(wxHORIZONTAL);
