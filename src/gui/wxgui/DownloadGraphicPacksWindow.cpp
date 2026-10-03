@@ -111,29 +111,11 @@ void deleteDownloadedGraphicPacks()
 
 void DownloadGraphicPacksWindow::UpdateThread()
 {
-	// get github url
-	std::string githubAPIUrl;
+	// Cemu-Silicon doesn't use cemu.info, so ask GitHub directly for the latest community graphic pack release
+	const char* githubAPIUrl = "https://api.github.com/repos/cemu-project/cemu_graphic_packs/releases/latest";
 	curlDownloadFileState_t tempDownloadState;
-	std::string queryUrl("https://cemu.info/api2/query_graphicpack_url.php?");
-	char temp[64];
-	sprintf(temp, "version=%d.%d.%d", EMULATOR_VERSION_MAJOR, EMULATOR_VERSION_MINOR, EMULATOR_VERSION_PATCH);
-	queryUrl.append(temp);
-	queryUrl.append("&");
-	sprintf(temp, "t=%u", (uint32)std::chrono::seconds(std::time(NULL)).count()); // add a dynamic part to the url to bypass overly aggressive caching (like some proxies do)
-	queryUrl.append(temp);
-	if (curlDownloadFile(queryUrl.c_str(), &tempDownloadState))
-	{
-		// convert downloaded data to url string
-		githubAPIUrl.assign(tempDownloadState.fileData.cbegin(), tempDownloadState.fileData.cend());
-	}
-	if (githubAPIUrl.empty())
-	{
-		// cemu api request failed, use hardcoded github url
-		cemuLog_log(LogType::Force, "Graphic pack update request failed or returned invalid URL. Using default repository URL instead");
-		githubAPIUrl = "https://api.github.com/repos/cemu-project/cemu_graphic_packs/releases/latest";
-	}
 	// github API request
-	if (curlDownloadFile(githubAPIUrl.c_str(), &tempDownloadState) == false)
+	if (curlDownloadFile(githubAPIUrl, &tempDownloadState) == false)
 	{
 		wxMessageBox( _("Error"), _(L"Failed to connect to server"), wxOK | wxCENTRE | wxICON_ERROR, this);
 		m_threadState = ThreadError;

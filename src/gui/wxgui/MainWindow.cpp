@@ -872,7 +872,7 @@ void MainWindow::OpenSettings()
 		m_discord.reset();
 	#endif
 
-	if(config.check_update && !m_game_launched)
+	if(CemuUpdateWindow::IsUpdaterEnabled() && config.check_update && !m_game_launched)
 		m_update_available = CemuUpdateWindow::IsUpdateAvailableAsync();
 
 	if (mlc_modified)
@@ -1306,7 +1306,7 @@ void MainWindow::LoadSettings()
 	GetConfigHandle().Load();
 	const auto& config = GetWxGUIConfig();
 
-	if(config.check_update)
+	if(CemuUpdateWindow::IsUpdaterEnabled() && config.check_update)
 		m_update_available = CemuUpdateWindow::IsUpdateAvailableAsync();
 
 	if (config.window_position != Vector2i{ -1,-1 })
@@ -1930,7 +1930,8 @@ public:
 		auto versionString = formatWxString(_("Cemu\nVersion {0}\nCompiled on {1}\nOriginal authors: {2}"), BUILD_VERSION_STRING, BUILD_DATE, "Exzap, Petergov");
 
 		sizer->Add(new wxStaticText(parent, wxID_ANY, versionString), wxSizerFlags().Border(wxALL, 3).Border(wxTOP, 10));
-		sizer->Add(new wxHyperlinkCtrl(parent, wxID_ANY, "https://cemu.info", "https://cemu.info", wxDefaultPosition, wxDefaultSize, (wxHL_CONTEXTMENU|wxNO_BORDER|wxHL_ALIGN_LEFT)), wxSizerFlags().Expand().Border(wxTOP | wxBOTTOM, 3));
+		sizer->Add(new wxStaticText(parent, wxID_ANY, _("Cemu-Silicon is an independent fork of Cemu for Apple Silicon Macs.\nIt is not affiliated with or endorsed by the Cemu team.")), wxSizerFlags().Border(wxTOP, 8));
+		sizer->Add(new wxHyperlinkCtrl(parent, wxID_ANY, "https://github.com/BranzinoBros/Cemu-Silicon", "https://github.com/BranzinoBros/Cemu-Silicon", wxDefaultPosition, wxDefaultSize, (wxHL_CONTEXTMENU|wxNO_BORDER|wxHL_ALIGN_LEFT)), wxSizerFlags().Expand().Border(wxTOP | wxBOTTOM, 3));
 
 		sizer->AddSpacer(3);
 		sizer->Add(new wxStaticLine(parent), wxSizerFlags().Expand().Border(wxRIGHT, 4));
@@ -2046,7 +2047,7 @@ public:
 		{
 			wxSizer* lineSizer = new wxBoxSizer(wxHORIZONTAL);
 			lineSizer->Add(new wxStaticText(parent, wxID_ANY, "Modified ih264 from Android project ("));
-			lineSizer->Add(new wxHyperlinkCtrl(parent, wxID_ANY, "Source", "https://cemu.info/oss/ih264d.zip", wxDefaultPosition, wxDefaultSize, (wxHL_CONTEXTMENU|wxNO_BORDER|wxHL_ALIGN_LEFT)));
+			lineSizer->Add(new wxHyperlinkCtrl(parent, wxID_ANY, "Source", "https://github.com/BranzinoBros/Cemu-Silicon/tree/main/dependencies/ih264d", wxDefaultPosition, wxDefaultSize, (wxHL_CONTEXTMENU|wxNO_BORDER|wxHL_ALIGN_LEFT)));
 			lineSizer->Add(new wxStaticText(parent, wxID_ANY, " "));
 			wxHyperlinkCtrl* noticeLink = new wxHyperlinkCtrl(parent, wxID_ANY, "NOTICE", "", wxDefaultPosition, wxDefaultSize, (wxHL_CONTEXTMENU|wxNO_BORDER|wxHL_ALIGN_LEFT));
 			noticeLink->Bind(wxEVT_LEFT_DOWN, [](wxMouseEvent& event)
@@ -2390,15 +2391,18 @@ void MainWindow::RecreateMenu()
 	m_menuBar->Append(debugMenu, _("&Debug"));
 	// help menu
 	wxMenu* helpMenu = new wxMenu();
-	m_check_update_menu = helpMenu->Append(MAINFRAME_MENU_ID_HELP_UPDATE, _("&Check for updates"));
+	if (CemuUpdateWindow::IsUpdaterEnabled())
+	{
+		m_check_update_menu = helpMenu->Append(MAINFRAME_MENU_ID_HELP_UPDATE, _("&Check for updates"));
 #if BOOST_OS_LINUX
-	if (!std::getenv("APPIMAGE")) {
-		m_check_update_menu->Enable(false);
-	}
+		if (!std::getenv("APPIMAGE")) {
+			m_check_update_menu->Enable(false);
+		}
 #elif BOOST_OS_BSD // BSD users must update from source so disable update checks
-	m_check_update_menu->Enable(false);
+		m_check_update_menu->Enable(false);
 #endif
-	helpMenu->AppendSeparator();
+		helpMenu->AppendSeparator();
+	}
 	helpMenu->Append(MAINFRAME_MENU_ID_HELP_ABOUT, _("&About Cemu"));
 
 	m_menuBar->Append(helpMenu, _("&Help"));

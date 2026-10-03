@@ -2,6 +2,7 @@
 #include "wxgui/wxgui.h"
 #include "wxgui/GeneralSettings2.h"
 #include "wxgui/CemuApp.h"
+#include "wxgui/CemuUpdateWindow.h"
 #include "wxgui/helpers/wxControlObject.h"
 
 #include "util/helpers/helpers.h"
@@ -271,6 +272,12 @@ wxPanel* GeneralSettings2::AddGeneralPage(wxNotebook* notebook)
 #elif BOOST_OS_BSD // BSD users must update from source so disable auto updates
 			m_auto_update->Disable();
 #endif
+			// Cemu-Silicon has no update server yet, so hide the update options. The hidden checkboxes still load and store the config values
+			if (!CemuUpdateWindow::IsUpdaterEnabled())
+			{
+				m_auto_update->Hide();
+				m_receive_untested_releases->Hide();
+			}
 
 			box_sizer->Add(third_row, 0, wxEXPAND, 5);
 		}

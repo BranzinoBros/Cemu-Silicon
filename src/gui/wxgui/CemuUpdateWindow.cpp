@@ -191,6 +191,8 @@ static std::string GetPlatformUpdateIdentifier()
 // returns true if update is available and sets output parameters
 bool CemuUpdateWindow::QueryUpdateInfo(std::string& downloadUrlOut, std::string& changelogUrlOut, std::array<uint8, 32>& fileSha256Out)
 {
+	if (!IsUpdaterEnabled())
+		return false; // never contact cemu.info, see IsUpdaterEnabled()
 	std::string rdString = GenerateSecureRandomString();
 	if (rdString.empty())
 		return false;
