@@ -38,22 +38,21 @@ long CubebAPI::data_cb(cubeb_stream* stream, void* user, const void* inputbuffer
 	// m_bytesPerBlock = samples_per_block * channels * (bits_per_sample / 8);
 	const auto size = (size_t)nframes * thisptr->m_channels * (thisptr->m_bitsPerSample/8);
 
-	std::unique_lock lock(thisptr->m_mutex);
-	if (thisptr->m_buffer.empty())
+	// lock-free consumer side of the ring buffer, this runs on the realtime audio thread
+	const size_t readPos = thisptr->m_readPos.load(std::memory_order_relaxed);
+	const size_t queued = thisptr->m_writePos.load(std::memory_order_acquire) - readPos;
+	const size_t copied = std::min(queued, size);
+	if (copied > 0)
 	{
-		// we got no data, just write silence
-		memset(outputbuffer, 0x00, size);
+		const size_t offset = readPos % thisptr->m_bufferSize;
+		const size_t firstPart = std::min(copied, thisptr->m_bufferSize - offset);
+		memcpy(outputbuffer, thisptr->m_buffer.get() + offset, firstPart);
+		memcpy((uint8*)outputbuffer + firstPart, thisptr->m_buffer.get(), copied - firstPart);
+		thisptr->m_readPos.store(readPos + copied, std::memory_order_release);
 	}
-	else
-	{
-		const auto copied = std::min(thisptr->m_buffer.size(), size);
-		memcpy(outputbuffer, thisptr->m_buffer.data(), copied);
-		thisptr->m_buffer.erase(thisptr->m_buffer.begin(), std::next(thisptr->m_buffer.begin(), copied));
-		lock.unlock();
-		// fill rest with silence
-		if (copied != size)
-			memset((uint8*)outputbuffer + copied, 0x00, size - copied);
-	}
+	// on underrun fill the rest with silence
+	if (copied != size)
+		memset((uint8*)outputbuffer + copied, 0x00, size - copied);
 
 	return nframes;
 }
@@ -91,7 +90,8 @@ CubebAPI::CubebAPI(cubeb_devid devid, uint32 samplerate, uint32 channels, uint32
 	uint32 latency = 1;
 	cubeb_get_min_latency(s_context, &output_params, &latency);
 
-	m_buffer.reserve((size_t)m_bytesPerBlock * kBlockCount);
+	m_bufferSize = (size_t)m_bytesPerBlock * kBlockCount;
+	m_buffer = std::make_unique<uint8[]>(m_bufferSize);
 
 	if (cubeb_stream_init(s_context, &m_stream, "Cemu Cubeb output",
 	                      nullptr, nullptr,
@@ -113,20 +113,28 @@ CubebAPI::~CubebAPI()
 
 bool CubebAPI::NeedAdditionalBlocks() const
 {
-	std::shared_lock lock(m_mutex);
-	return m_buffer.size() < GetAudioDelay() * m_bytesPerBlock;
+	// load the read position first, so that it can never be ahead of the loaded write position
+	const size_t readPos = m_readPos.load(std::memory_order_acquire);
+	const size_t queued = m_writePos.load(std::memory_order_acquire) - readPos;
+	return queued < (size_t)GetAudioDelay() * m_bytesPerBlock;
 }
 
 bool CubebAPI::FeedBlock(sint16* data)
 {
-	std::unique_lock lock(m_mutex);
-	if (m_buffer.capacity() <= m_buffer.size() + m_bytesPerBlock)
+	std::unique_lock lock(m_producerMutex);
+	const size_t writePos = m_writePos.load(std::memory_order_relaxed);
+	const size_t queued = writePos - m_readPos.load(std::memory_order_acquire);
+	if (m_bufferSize <= queued + m_bytesPerBlock)
 	{
 		cemuLog_logDebug(LogType::Force, "dropped direct sound block since too many buffers are queued");
 		return false;
 	}
 
-	m_buffer.insert(m_buffer.end(), (uint8*)data, (uint8*)data + m_bytesPerBlock);
+	const size_t offset = writePos % m_bufferSize;
+	const size_t firstPart = std::min((size_t)m_bytesPerBlock, m_bufferSize - offset);
+	memcpy(m_buffer.get() + offset, data, firstPart);
+	memcpy(m_buffer.get(), (uint8*)data + firstPart, m_bytesPerBlock - firstPart);
+	m_writePos.store(writePos + m_bytesPerBlock, std::memory_order_release);
 	return true;
 }
 
