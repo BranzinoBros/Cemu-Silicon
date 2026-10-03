@@ -49,6 +49,7 @@ struct
 	// recompiler thread
 	std::thread workerThread;
 	std::atomic_bool workerThreadStopSignal{false};
+	std::atomic_bool workerThreadWakeSignal{false}; // set after queueing work or requesting a stop
 	// function storage
 	RangeStore<PPCRecFunction_t*, uint32, 7703, 0x2000> functionStorage;
 }s_ppcRecompilerState;
@@ -64,6 +65,12 @@ static std::mutex s_singleRecompilationMutex;
 #endif
 
 void PPCRecompiler_recompileAtAddress(uint32 address);
+
+static void PPCRecompiler_wakeWorkerThread()
+{
+	s_ppcRecompilerState.workerThreadWakeSignal.store(true, std::memory_order_release);
+	s_ppcRecompilerState.workerThreadWakeSignal.notify_one();
+}
 
 // this function does never block and can fail if the recompiler lock cannot be acquired immediately
 void PPCRecompiler_visitAddressNoBlock(uint32 enterAddress)
@@ -105,6 +112,7 @@ void PPCRecompiler_visitAddressNoBlock(uint32 enterAddress)
 	ppcRecompilerInstanceData->ppcRecompilerDirectJumpTable[enterAddress / 4] = PPCRecompiler_leaveRecompilerCode_visited;
 
 	s_ppcRecompilerState.recompilerSpinlock.unlock();
+	PPCRecompiler_wakeWorkerThread();
 }
 
 void PPCRecompiler_recompileIfUnvisited(uint32 enterAddress)
@@ -244,6 +252,7 @@ PPCRecFunction_t* PPCRecompiler_recompileFunction(PPCFunctionBoundaryTracker::PP
 	bool aarch64GenerationSuccess = PPCRecompiler_generateAArch64Code(ppcRecFunc, &ppcImlGenContext);
 	if (aarch64GenerationSuccess == false)
 	{
+		delete ppcRecFunc;
 		return nullptr;
 	}
 #endif
@@ -459,9 +468,13 @@ void PPCRecompiler_thread()
 
 	while (true)
 	{
+		// sleep until work is queued or a stop is requested
+		// the signal is cleared (as an acquire RMW, pairing with the release store in PPCRecompiler_wakeWorkerThread) before draining the queue
+		// so anything queued after this point sets it again and the next wait returns immediately
+		s_ppcRecompilerState.workerThreadWakeSignal.wait(false, std::memory_order_acquire);
+		s_ppcRecompilerState.workerThreadWakeSignal.exchange(false, std::memory_order_acquire);
         if(s_ppcRecompilerState.workerThreadStopSignal)
             return;
-		std::this_thread::sleep_for(std::chrono::milliseconds(10));
 		// asynchronous recompilation:
 		// 1) take address from queue
 		// 2) check if address is still marked as visited
@@ -706,6 +719,7 @@ void PPCRecompiler_Shutdown()
 {
     // shut down recompiler thread
     s_ppcRecompilerState.workerThreadStopSignal = true;
+    PPCRecompiler_wakeWorkerThread();
     if(s_ppcRecompilerState.workerThread.joinable())
         s_ppcRecompilerState.workerThread.join();
     // clean up queues

@@ -1,4 +1,5 @@
 #include "BackendAArch64.h"
+#include "AArch64CodeArena.h"
 
 #pragma push_macro("CSIZE")
 #undef CSIZE
@@ -60,40 +61,74 @@ static const FPReg TEMP_FPR{TEMP_FPR_ID};
 
 static const util::Cpu s_cpu;
 
-class AArch64Allocator : public Allocator
+// Code is emitted into ordinary (non-executable) heap memory and copied into the executable code arena once it is complete
+// The emitted code is position-independent: absolute addresses are materialized with movz/movk, calls and exits are indirect (blr/br via register)
+// and all pc-relative branches target labels or segments inside the same function
+// The largest buffer is kept per thread and reused, so steady-state recompilation does not allocate scratch memory
+struct AArch64CachedScratchBuffer
+{
+	uint32* ptr = nullptr;
+	size_t size = 0;
+
+	~AArch64CachedScratchBuffer()
+	{
+		std::free(ptr);
+	}
+};
+
+static thread_local AArch64CachedScratchBuffer s_cachedBuffer;
+
+class AArch64ScratchAllocator : public Allocator
 {
   private:
-#ifdef XBYAK_USE_MMAP_ALLOCATOR
-	inline static MmapAllocator s_allocator;
-#else
-	inline static Allocator s_allocator;
-#endif
-	Allocator* m_allocatorImpl;
-	bool m_freeDisabled = false;
+	std::unordered_map<uint32*, size_t> m_allocationSizes;
 
   public:
-	AArch64Allocator()
-		: m_allocatorImpl(reinterpret_cast<Allocator*>(&s_allocator)) {}
-
 	uint32* alloc(size_t size) override
 	{
-		return m_allocatorImpl->alloc(size);
-	}
-
-	void setFreeDisabled(bool disabled)
-	{
-		m_freeDisabled = disabled;
+		uint32* p;
+		if (s_cachedBuffer.ptr && s_cachedBuffer.size >= size)
+		{
+			p = s_cachedBuffer.ptr;
+			size = s_cachedBuffer.size;
+			s_cachedBuffer.ptr = nullptr;
+			s_cachedBuffer.size = 0;
+		}
+		else
+		{
+			p = static_cast<uint32*>(std::malloc(size));
+			if (!p)
+				return nullptr;
+		}
+		m_allocationSizes.emplace(p, size);
+		return p;
 	}
 
 	void free(uint32* p) override
 	{
-		if (!m_freeDisabled)
-			m_allocatorImpl->free(p);
+		if (!p)
+			return;
+		auto it = m_allocationSizes.find(p);
+		cemu_assert_debug(it != m_allocationSizes.end());
+		size_t size = it->second;
+		m_allocationSizes.erase(it);
+		// keep the largest buffer for the next function
+		if (size > s_cachedBuffer.size)
+		{
+			std::free(s_cachedBuffer.ptr);
+			s_cachedBuffer.ptr = p;
+			s_cachedBuffer.size = size;
+		}
+		else
+		{
+			std::free(p);
+		}
 	}
 
 	[[nodiscard]] bool useProtect() const override
 	{
-		return !m_freeDisabled && m_allocatorImpl->useProtect();
+		// scratch memory is never executed
+		return false;
 	}
 };
 
@@ -122,7 +157,10 @@ using JumpInfo = std::variant<
 
 struct AArch64GenContext_t : CodeGenerator
 {
-	explicit AArch64GenContext_t(Allocator* allocator = nullptr);
+	// initial scratch buffer size, large enough for most functions. Bigger functions grow the buffer
+	static constexpr size_t INITIAL_CODE_BUFFER_SIZE = 64 * 1024;
+
+	explicit AArch64GenContext_t(Allocator* allocator);
 	void enterRecompilerCode();
 	void leaveRecompilerCode();
 
@@ -321,8 +359,19 @@ To aliasAs(const From& reg)
 }
 
 AArch64GenContext_t::AArch64GenContext_t(Allocator* allocator)
-	: CodeGenerator(DEFAULT_MAX_CODE_SIZE, AutoGrow, allocator)
+	: CodeGenerator(INITIAL_CODE_BUFFER_SIZE, AutoGrow, allocator)
 {
+}
+
+// copy the finished code of a generator into the executable code arena
+static void* PPCRecompilerAArch64Gen_commitCode(AArch64GenContext_t& aarch64GenContext)
+{
+	if (aarch64GenContext.hasUndefinedLabel())
+	{
+		cemuLog_log(LogType::Recompiler, "PPCRecompiler_generateAArch64Code(): code has undefined labels");
+		return nullptr;
+	}
+	return AArch64CodeArena::Commit(aarch64GenContext.getCode(), aarch64GenContext.getSize());
 }
 
 constexpr uint64 ones(uint32 size)
@@ -1437,7 +1486,7 @@ void AArch64GenContext_t::call_imm(IMLInstruction* imlInstruction)
 
 bool PPCRecompiler_generateAArch64Code(struct PPCRecFunction_t* PPCRecFunction, struct ppcImlGenContext_t* ppcImlGenContext)
 {
-	AArch64Allocator allocator;
+	AArch64ScratchAllocator allocator;
 	AArch64GenContext_t aarch64GenContext{&allocator};
 
 	// generate iml instruction code
@@ -1611,22 +1660,14 @@ bool PPCRecompiler_generateAArch64Code(struct PPCRecFunction_t* PPCRecFunction, 
 	}
 	aarch64GenContext.setSize(codeSize);
 
-	aarch64GenContext.readyRE();
+	void* code = PPCRecompilerAArch64Gen_commitCode(aarch64GenContext);
+	if (!code)
+		return false;
 
 	// set code
-	PPCRecFunction->x86Code = aarch64GenContext.getCode<void*>();
-	PPCRecFunction->x86Size = aarch64GenContext.getMaxSize();
-	// set free disabled to skip freeing the code from the CodeGenerator destructor
-	allocator.setFreeDisabled(true);
+	PPCRecFunction->x86Code = code;
+	PPCRecFunction->x86Size = codeSize;
 	return true;
-}
-
-void PPCRecompiler_cleanupAArch64Code(void* code, size_t size)
-{
-	AArch64Allocator allocator;
-	if (allocator.useProtect())
-		CodeArray::protect(code, size, CodeArray::PROTECT_RW);
-	allocator.free(static_cast<uint32*>(code));
 }
 
 void AArch64GenContext_t::enterRecompilerCode()
@@ -1673,25 +1714,29 @@ void AArch64GenContext_t::leaveRecompilerCode()
 }
 
 bool initializedInterfaceFunctions = false;
-AArch64GenContext_t enterRecompilerCode_ctx{};
 
-AArch64GenContext_t leaveRecompilerCode_unvisited_ctx{};
-AArch64GenContext_t leaveRecompilerCode_visited_ctx{};
+template<typename TFunc>
+static TFunc PPCRecompilerAArch64Gen_generateInterfaceFunction(void (AArch64GenContext_t::*generate)())
+{
+	AArch64ScratchAllocator allocator;
+	AArch64GenContext_t aarch64GenContext{&allocator};
+	(aarch64GenContext.*generate)();
+	void* code = PPCRecompilerAArch64Gen_commitCode(aarch64GenContext);
+	if (!code)
+	{
+		cemuLog_log(LogType::Force, "Recompiler: Failed to allocate memory for AArch64 interface functions");
+		cemu_assert(false);
+	}
+	return reinterpret_cast<TFunc>(code);
+}
+
 void PPCRecompilerAArch64Gen_generateRecompilerInterfaceFunctions()
 {
 	if (initializedInterfaceFunctions)
 		return;
 	initializedInterfaceFunctions = true;
 
-	enterRecompilerCode_ctx.enterRecompilerCode();
-	enterRecompilerCode_ctx.readyRE();
-	PPCRecompiler_enterRecompilerCode = enterRecompilerCode_ctx.getCode<decltype(PPCRecompiler_enterRecompilerCode)>();
-
-	leaveRecompilerCode_unvisited_ctx.leaveRecompilerCode();
-	leaveRecompilerCode_unvisited_ctx.readyRE();
-	PPCRecompiler_leaveRecompilerCode_unvisited = leaveRecompilerCode_unvisited_ctx.getCode<decltype(PPCRecompiler_leaveRecompilerCode_unvisited)>();
-
-	leaveRecompilerCode_visited_ctx.leaveRecompilerCode();
-	leaveRecompilerCode_visited_ctx.readyRE();
-	PPCRecompiler_leaveRecompilerCode_visited = leaveRecompilerCode_visited_ctx.getCode<decltype(PPCRecompiler_leaveRecompilerCode_visited)>();
+	PPCRecompiler_enterRecompilerCode = PPCRecompilerAArch64Gen_generateInterfaceFunction<decltype(PPCRecompiler_enterRecompilerCode)>(&AArch64GenContext_t::enterRecompilerCode);
+	PPCRecompiler_leaveRecompilerCode_unvisited = PPCRecompilerAArch64Gen_generateInterfaceFunction<decltype(PPCRecompiler_leaveRecompilerCode_unvisited)>(&AArch64GenContext_t::leaveRecompilerCode);
+	PPCRecompiler_leaveRecompilerCode_visited = PPCRecompilerAArch64Gen_generateInterfaceFunction<decltype(PPCRecompiler_leaveRecompilerCode_visited)>(&AArch64GenContext_t::leaveRecompilerCode);
 }
