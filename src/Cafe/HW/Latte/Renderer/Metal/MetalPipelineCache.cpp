@@ -2,6 +2,7 @@
 #include "Cafe/HW/Latte/Renderer/Metal/MetalRenderer.h"
 #include "Cafe/HW/Latte/Renderer/Metal/LatteToMtl.h"
 #include "Cafe/HW/Latte/Renderer/Metal/MetalPipelineCompiler.h"
+#include "Cafe/HW/Latte/Renderer/Metal/MetalCompileThreads.h"
 
 #include "Cafe/HW/Latte/Core/FetchShader.h"
 #include "Cafe/HW/Latte/ISA/RegDefines.h"
@@ -26,9 +27,8 @@ static void compileThreadFunc(sint32 threadIndex)
 {
 	SetThreadName("compilePl");
 
-	// one thread runs at normal priority while the others run at lower priority
-	if (threadIndex != 0)
-		; // TODO: set thread priority
+	// threads that fit into the spare performance cores run at a higher priority than the rest, see SetCompileThreadQoS
+	SetCompileThreadQoS(threadIndex);
 
 	while (true)
 	{
@@ -49,15 +49,7 @@ static void compileThreadFunc(sint32 threadIndex)
 
 static void initCompileThread()
 {
-	uint32 numCompileThreads;
-
-	uint32 cpuCoreCount = GetPhysicalCoreCount();
-	if (cpuCoreCount <= 2)
-		numCompileThreads = 1;
-	else
-		numCompileThreads = 2 + (cpuCoreCount - 3); // 2 plus one additionally for every extra core above 3
-
-	numCompileThreads = std::min(numCompileThreads, 8u); // cap at 8
+	uint32 numCompileThreads = GetCompileThreadCount();
 
 	for (uint32 i = 0; i < numCompileThreads; i++)
 	{
@@ -290,6 +282,9 @@ uint32 MetalPipelineCache::BeginLoading(uint64 cacheTitleId)
 		compileThread.detach();
 	}
 
+	// open the binary archive with the GPU binaries of previously compiled pipelines
+	m_binaryArchive.Open(m_mtlr->GetDevice(), cacheTitleId);
+
 	// open cache file or create it
 	cemu_assert_debug(s_cache == nullptr);
 	s_cache = FileCache::Open(pathCacheFile, true, LatteShaderCache_getPipelineCacheExtraVersion(cacheTitleId));
@@ -352,6 +347,8 @@ void MetalPipelineCache::EndLoading()
 
 void MetalPipelineCache::Close()
 {
+    m_binaryArchive.Close();
+
     if(s_cache)
     {
         delete s_cache;
@@ -583,6 +580,8 @@ bool MetalPipelineCache::DeserializePipeline(MemStreamReader& memReader, CachedP
 int MetalPipelineCache::CompilerThread()
 {
 	SetThreadName("plCacheCompiler");
+	// the game is not running yet and the user is waiting for the cache to load
+	pthread_set_qos_class_self_np(QOS_CLASS_USER_INITIATED, 0);
 	while (m_numCompilationThreads != 0)
 	{
 		std::vector<uint8> pipelineData = m_compilationQueue.pop();

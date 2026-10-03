@@ -73,6 +73,8 @@ std::vector<fs::path> _getCachesPaths(const TitleId& titleId)
 		ActiveSettings::GetCachePath(L"shaderCache/precompiled/{:016x}_spirv.bin", titleId),
 		ActiveSettings::GetCachePath(L"shaderCache/precompiled/{:016x}_gl.bin", titleId),
 		ActiveSettings::GetCachePath(L"shaderCache/precompiled/{:016x}_air.bin", titleId),
+		ActiveSettings::GetCachePath(L"shaderCache/precompiled/{:016x}_mtlarchive.bin", titleId),
+		ActiveSettings::GetCachePath(L"shaderCache/precompiled/{:016x}_mtlarchive.key", titleId),
 		ActiveSettings::GetCachePath(L"shaderCache/transferable/{:016x}_shaders.bin", titleId),
 		ActiveSettings::GetCachePath(L"shaderCache/transferable/{:016x}_mtlshaders.bin", titleId),
 		ActiveSettings::GetCachePath(L"shaderCache/transferable/{:016x}_vkpipeline.bin", titleId),

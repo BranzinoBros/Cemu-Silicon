@@ -657,6 +657,8 @@ void MetalRenderer::AppendOverlayDebugInfo()
 
     ImGui::Text("--- Metal info ---");
     ImGui::Text("Render pipeline states     %zu", m_pipelineCache->GetPipelineCacheSize());
+    const MetalBinaryArchive& binaryArchive = m_pipelineCache->GetBinaryArchive();
+    ImGui::Text("Binary archive             %u hits, %u misses, %u added", binaryArchive.GetHitCount(), binaryArchive.GetMissCount(), binaryArchive.GetAddedCount());
 
     ImGui::Text("--- Metal info (per frame) ---");
     ImGui::Text("Command buffers            %u", m_performanceMonitor.m_commandBuffers);

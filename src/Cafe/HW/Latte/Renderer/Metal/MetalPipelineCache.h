@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Cafe/HW/Latte/Renderer/Metal/MetalBinaryArchive.h"
 #include "Cafe/HW/Latte/Renderer/Metal/MetalPipelineCompiler.h"
 #include "util/helpers/ConcurrentQueue.h"
 #include "util/helpers/fspinlock.h"
@@ -22,6 +23,8 @@ public:
 	void LoadPipelineFromCache(std::span<uint8> fileData);
        void Close(); // called on title exit
 
+    MetalBinaryArchive& GetBinaryArchive() { return m_binaryArchive; }
+
     // Debug
     size_t GetPipelineCacheSize() const { return m_pipelineCache.size(); }
 
@@ -30,6 +33,8 @@ private:
 
     std::map<uint64, PipelineObject*> m_pipelineCache;
     FSpinlock m_pipelineCacheLock;
+
+    MetalBinaryArchive m_binaryArchive;
 
 	std::thread* m_pipelineCacheStoreThread;
 
