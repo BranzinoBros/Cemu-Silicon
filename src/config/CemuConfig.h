@@ -77,8 +77,6 @@ enum GraphicAPI
 constexpr GraphicAPI kDefaultGraphicsAPI = kVulkan;
 #elif defined(ENABLE_METAL)
 constexpr GraphicAPI kDefaultGraphicsAPI = kMetal;
-#elif defined(ENABLE_OPENGL)
-constexpr GraphicAPI kDefaultGraphicsAPI = kOpenGL;
 #endif
 
 enum AudioChannels

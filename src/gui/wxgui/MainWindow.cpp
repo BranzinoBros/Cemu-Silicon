@@ -38,9 +38,6 @@
 #include "Cafe/HW/Latte/Renderer/Vulkan/VsyncDriver.h"
 
 // Renderer Canvasses
-#ifdef ENABLE_OPENGL
-#include "canvas/OpenGLCanvas.h"
-#endif
 #ifdef ENABLE_VULKAN
 #include "canvas/VulkanCanvas.h"
 #endif
@@ -1504,10 +1501,6 @@ void MainWindow::CreateCanvas()
     this->GetSizer()->Add(m_game_panel, 1, wxEXPAND);
 
     // create canvas
-	#ifdef ENABLE_OPENGL
-	if (ActiveSettings::GetGraphicsAPI() == kOpenGL)
-		m_render_canvas = GLCanvas_Create(m_game_panel, wxSize(1280, 720), true);
-	#endif
 	#ifdef ENABLE_VULKAN
 	if (ActiveSettings::GetGraphicsAPI() == kVulkan)
 		m_render_canvas = new VulkanCanvas(m_game_panel, wxSize(1280, 720), true);

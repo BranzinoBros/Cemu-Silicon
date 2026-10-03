@@ -2,7 +2,6 @@
 #include "Cafe/HW/Latte/Core/LatteShaderAssembly.h"
 #include "Cafe/HW/Latte/ISA/RegDefines.h"
 #include "Cafe/HW/Latte/Core/Latte.h"
-#include "Cafe/HW/Latte/Core/LatteDraw.h"
 #include "Cafe/HW/Latte/Core/LatteShader.h"
 #include "Cafe/HW/Latte/LegacyShaderDecompiler/LatteDecompiler.h"
 #include "Cafe/HW/Latte/LegacyShaderDecompiler/LatteDecompilerInternal.h"
@@ -1079,7 +1078,7 @@ void _LatteDecompiler_Process(LatteDecompilerShaderContext* shaderContext, uint8
 	{
 		if (g_renderer->GetType() == RendererAPI::OpenGL || g_renderer->GetType() == RendererAPI::Vulkan)
 		{
-#if defined(ENABLE_OPENGL) || defined(ENABLE_VULKAN)
+#if defined(ENABLE_VULKAN)
 			LatteDecompiler_emitGLSLShader(shaderContext, shaderContext->shader);
 #endif
 		}

@@ -2,9 +2,6 @@
 #include "WindowSystem.h"
 #include "Cafe/HW/Latte/Renderer/Renderer.h"
 #include "resource/IconsFontAwesome5.h"
-#ifdef ENABLE_OPENGL
-#include "imgui_impl_opengl3.h"
-#endif
 #ifdef ENABLE_VULKAN
 #include "imgui_impl_vulkan.h"
 #endif

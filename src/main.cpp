@@ -50,23 +50,6 @@ void _putenvSafe(const char* c)
     _putenv(s->c_str());
 }
 
-void reconfigureGLDrivers()
-{
-#ifdef ENABLE_OPENGL
-	// reconfigure GL drivers to store
-	const fs::path nvCacheDir = ActiveSettings::GetCachePath("shaderCache/driver/nvidia/");
-
-	std::error_code err;
-	fs::create_directories(nvCacheDir, err);
-
-	std::string nvCacheDirEnvOption("__GL_SHADER_DISK_CACHE_PATH=");
-	nvCacheDirEnvOption.append(_pathToUtf8(nvCacheDir));
-
-    _putenvSafe(nvCacheDirEnvOption.c_str());
-    _putenvSafe("__GL_SHADER_DISK_CACHE_SKIP_CLEANUP=1");
-#endif
-}
-
 void reconfigureVkDrivers()
 {
 #ifdef ENABLE_VULKAN
@@ -77,7 +60,6 @@ void reconfigureVkDrivers()
 
 void CemuCommonInit()
 {
-	reconfigureGLDrivers();
 	reconfigureVkDrivers();
 	// crypto init
 	AES128_init();

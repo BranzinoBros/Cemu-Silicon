@@ -4,12 +4,6 @@
 
 #include "Cafe/HW/Latte/Renderer/Renderer.h"
 
-#ifdef ENABLE_OPENGL
-#include "Cafe/HW/Latte/Renderer/OpenGL/OpenGLRenderer.h"
-#include "Cafe/HW/Latte/Renderer/OpenGL/LatteTextureGL.h"
-#include "Cafe/HW/Latte/Renderer/OpenGL/LatteTextureViewGL.h"
-#endif
-
 struct TexScaleXY
 {
 	float xy[2];
@@ -193,31 +187,6 @@ void LatteTexture_updateTexturesForStage(LatteDecompilerShader* shaderContext, u
 				continue;
 			LatteGPUState.repeatTextureInitialization = true;
 		}
-
-#ifdef ENABLE_OPENGL
-		if (g_renderer->GetType() == RendererAPI::OpenGL)
-		{
-			// on OpenGL, texture views and sampler parameters are tied together (we are avoiding sampler objects due to driver bugs)
-			// in order to emulate different sampler parameters when a texture is bound multiple times we create extra views
-			OpenGLRenderer* rendererGL = static_cast<OpenGLRenderer*>(g_renderer.get());
-
-			// if this texture is bound multiple times then use alternative views
-			if (textureView->lastTextureBindIndex == LatteGPUState.textureBindCounter)
-			{
-				LatteTextureViewGL* textureViewGL = (LatteTextureViewGL*)textureView;
-				// get next unused alternative texture view
-				while (true)
-				{
-					textureViewGL = textureViewGL->GetAlternativeView();
-					if (textureViewGL->lastTextureBindIndex != LatteGPUState.textureBindCounter)
-						break;
-				}
-				textureView = textureViewGL;
-		}
-			textureView->lastTextureBindIndex = LatteGPUState.textureBindCounter;
-			rendererGL->renderstate_updateTextureSettingsGL(shaderContext, textureView, textureIndex + glBackendBaseTexUnit, word4, textureIndex, isDepthSampler);
-		}
-#endif
 
 		g_renderer->texture_setLatteTexture(textureView, textureIndex + glBackendBaseTexUnit);
 		// update if data changed

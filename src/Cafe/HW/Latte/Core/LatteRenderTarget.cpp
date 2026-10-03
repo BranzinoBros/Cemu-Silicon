@@ -1,7 +1,6 @@
 #include "Cafe/HW/Latte/ISA/RegDefines.h"
 
 #include "Cafe/HW/Latte/Core/Latte.h"
-#include "Cafe/HW/Latte/Core/LatteDraw.h"
 #include "Cafe/HW/Latte/Core/LatteShader.h"
 #include "Cafe/HW/Latte/Core/LatteOverlay.h"
 #include "Cafe/HW/Latte/Core/LatteBufferCache.h"
@@ -692,9 +691,6 @@ void LatteRenderTarget_itHLESwapScanBuffer()
 
 	LatteTC_CleanupUnusedTextures();
 	LatteSHRC_CleanupShaderStateCache();
-#ifdef ENABLE_OPENGL
-	LatteDraw_cleanupAfterFrame();
-#endif
 	LatteQuery_CancelActiveGPU7Queries();
 	LatteBufferCache_notifySwapTVScanBuffer();
 	LattePerformanceMonitor_frameBegin();

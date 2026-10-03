@@ -84,7 +84,6 @@ endif()
 
 enable_language(OBJC OBJCXX)
 
-option(ENABLE_OPENGL "Enables the OpenGL backend" OFF)
 option(ENABLE_VULKAN "Enables the Vulkan backend" ON)
 option(ENABLE_METAL "Enables the Metal backend" ON)
 option(ENABLE_DISCORD_RPC "Enables the Discord Rich Presence feature" ON)
@@ -133,11 +132,6 @@ if (ENABLE_VULKAN)
 	add_compile_definitions(VK_NO_PROTOTYPES)
 endif()
 
-if (ENABLE_OPENGL)
-	find_package(OpenGL REQUIRED)
-	add_compile_definitions(ENABLE_OPENGL)
-endif()
-
 if (ENABLE_METAL)
     include_directories(${CMAKE_SOURCE_DIR}/dependencies/metal-cpp)
 
@@ -154,7 +148,7 @@ if (ENABLE_HIDAPI)
 endif ()
 
 if (ENABLE_WXWIDGETS)
-	find_package(wxWidgets 3.3 REQUIRED COMPONENTS base core gl propgrid xrc)
+	find_package(wxWidgets 3.3 REQUIRED COMPONENTS base core propgrid xrc)
 endif()
 
 if (ENABLE_CUBEB)
