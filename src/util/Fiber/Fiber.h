@@ -1,9 +1,5 @@
 #pragma once
 
-#if BOOST_OS_WINDOWS
-
-#endif
-
 class Fiber
 {
 public:

@@ -277,7 +277,7 @@ void LatteBufferCache_Sync(uint32 maxVtxIndex, uint32 baseInstance, uint32 insta
 			if ( lookupRangeSize == 0 )
 				lookupRangeSize = 1;
 
-#if BOOST_OS_MACOS && defined(ENABLE_VULKAN)
+#if defined(ENABLE_VULKAN)
 			if(bufferStride % 4 != 0)
 			{
 				if (g_renderer->GetType() == RendererAPI::Vulkan)

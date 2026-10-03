@@ -8,10 +8,7 @@ namespace WindowSystem
 	{
 		enum class Backend
 		{
-			X11,
-			Wayland,
 			Cocoa,
-			Windows,
 		} backend;
 		void* display = nullptr;
 		void* surface = nullptr;

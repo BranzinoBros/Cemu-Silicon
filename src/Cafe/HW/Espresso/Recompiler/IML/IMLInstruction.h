@@ -817,10 +817,3 @@ struct IMLInstruction
 
 	void RewriteGPR(const std::unordered_map<IMLRegID, IMLRegID>& translationTable);
 };
-
-// architecture specific constants
-namespace IMLArchX86
-{
-	static constexpr int PHYSREG_GPR_BASE = 0;
-	static constexpr int PHYSREG_FPR_BASE = 16;
-};

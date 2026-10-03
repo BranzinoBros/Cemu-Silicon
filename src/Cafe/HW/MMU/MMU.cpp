@@ -93,11 +93,7 @@ void MMURange::mapMem()
 	{
 		std::string errorMsg = _tr("Unable to allocate {} memory", name);
 		WindowSystem::ShowErrorDialog(errorMsg, _tr("Error"));
-		#if BOOST_OS_WINDOWS
-		ExitProcess(-1);
-		#else
 		exit(-1);
-		#endif
 	}
 	m_isMapped = true;
 }

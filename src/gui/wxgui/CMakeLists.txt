@@ -66,8 +66,6 @@ add_library(CemuWxGui STATIC
   helpers/wxHelpers.cpp
   helpers/wxHelpers.h
   helpers/wxLogEvent.h
-  helpers/wxWayland.cpp
-  helpers/wxWayland.h
   input/HotkeySettings.cpp
   input/HotkeySettings.h
   input/InputAPIAddWindow.cpp
@@ -114,13 +112,6 @@ add_library(CemuWxGui STATIC
   wxHelper.h
 )
 
-if (ENABLE_OPENGL)
-  target_sources(CemuWxGui PRIVATE
-    canvas/OpenGLCanvas.cpp
-    canvas/OpenGLCanvas.h
-  )
-endif()
-
 if (ENABLE_VULKAN)
   target_sources(CemuWxGui PRIVATE
     canvas/VulkanCanvas.cpp
@@ -134,15 +125,6 @@ if (ENABLE_METAL)
     canvas/MetalCanvas.h
   )
 endif()
-
-if (ENABLE_BLUEZ)
-  target_sources(CemuWxGui PRIVATE
-    input/PairingDialog.cpp
-    input/PairingDialog.h
-  )
-endif()
-
-set_property(TARGET CemuWxGui PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 cemu_use_precompiled_header(CemuWxGui)
 
@@ -163,14 +145,6 @@ target_link_libraries(CemuWxGui PRIVATE
   CURL::libcurl
 )
 
-if(ENABLE_WXWIDGETS AND UNIX AND NOT APPLE)
-	# PUBLIC because gdk/gdkkeysyms.h is included in guiWrapper.h
-	target_link_libraries(CemuWxGui PUBLIC GTK3::gtk)
-  if (ENABLE_WAYLAND)
-    target_link_libraries(CemuWxGui PRIVATE Wayland::Client CemuWaylandProtocols)
-  endif()
-endif()
-
 if(ENABLE_CUBEB)
 	target_link_libraries(CemuWxGui PRIVATE cubeb::cubeb)
 endif()
@@ -179,18 +153,9 @@ if(ENABLE_SDL)
 	target_link_libraries(CemuWxGui PRIVATE SDL3::SDL3)
 endif()
 
-if(UNIX AND NOT APPLE)
-	if(ENABLE_FERAL_GAMEMODE)
-		target_link_libraries(CemuWxGui PRIVATE gamemode)
-	endif()
-endif()
 if (ENABLE_WXWIDGETS)
 	# PUBLIC because wx/app.h is included in CemuApp.h
 	target_link_libraries(CemuWxGui PUBLIC wxWidgets::wxWidgets)
-endif()
-
-if(WIN32)
-	target_link_libraries(CemuWxGui PRIVATE bthprops)
 endif()
 
 if(ALLOW_PORTABLE)

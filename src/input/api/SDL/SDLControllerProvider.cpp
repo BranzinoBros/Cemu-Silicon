@@ -16,43 +16,10 @@ struct SDL_JoystickGUIDHash
 
 SDLControllerProvider::SDLControllerProvider()
 {
-#if !BOOST_OS_MACOS
-	std::scoped_lock _l(s_mutex);
-	if (s_initCount.fetch_add(1) == 0)
-	{
-		s_running = true;
-		s_thread = std::thread(&SDLControllerProvider::event_thread, this);
-	}
-#endif
 }
 
 SDLControllerProvider::~SDLControllerProvider()
 {
-#if !BOOST_OS_MACOS
-	bool shutdownSDL = false;
-	{
-		std::scoped_lock _l(s_mutex);
-		if (s_initCount.fetch_sub(1) == 1)
-		{
-			cemu_assert_debug(s_running);
-			s_running = false;
-			shutdownSDL = true;
-		}
-	}
-
-	if (shutdownSDL)
-	{
-		// wake the thread with a quit event if it's currently waiting for events
-		SDL_Event evt;
-		SDL_zero(evt);
-		evt.type = SDL_EVENT_QUIT;
-		SDL_PushEvent(&evt);
-		if (s_thread.joinable())
-		{
-			s_thread.join();
-		}
-	}
-#endif
 }
 
 std::vector<std::shared_ptr<ControllerBase>> SDLControllerProvider::get_controllers()
@@ -144,14 +111,12 @@ void SDLControllerProvider::ShutdownSDL()
 	SDL_QuitSubSystem(SDL_INIT_GAMEPAD | SDL_INIT_HAPTIC);
 }
 
-#if BOOST_OS_MACOS
 void SDLControllerProvider::PumpSDLEvents()
 {
 	SDL_Event event;
 	while (SDL_PollEvent(&event))
 		HandleSDLEvent(event);
 }
-#endif
 
 void SDLControllerProvider::HandleSDLEvent(SDL_Event& event)
 {
@@ -281,20 +246,4 @@ void SDLControllerProvider::HandleSDLEvent(SDL_Event& event)
 			break;
 		}
 	}
-}
-
-void SDLControllerProvider::event_thread()
-{
-#if BOOST_OS_MACOS
-	cemu_assert(false);
-#endif
-	SetThreadName("SDL_events");
-	InitSDL();
-	while (s_running.load(std::memory_order_relaxed))
-	{
-		SDL_Event event{};
-		SDL_WaitEvent(&event);
-		HandleSDLEvent(event);
-	}
-	ShutdownSDL();
 }

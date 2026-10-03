@@ -15,28 +15,18 @@
 
 #include "util/helpers/helpers.h"
 
-#ifdef __arm64__
 #if defined(__clang__)
 #include <arm_acle.h>
-#elif defined(_MSC_VER)
-#include <intrin.h>
-#endif
 #endif
 
 namespace {
 
 void enableFlushDenormalsToZero()
 {
-#if defined(ARCH_X86_64)
-	_mm_setcsr(_mm_getcsr() | 0x8000);
-#elif defined(__arm64__)
 #if defined(__clang__)
 	__arm_wsr64("fpcr", __arm_rsr64("fpcr") | (1 << 24));
 #elif defined(__GNUC__)
 	__builtin_aarch64_set_fpcr(__builtin_aarch64_get_fpcr() | (1 << 24));
-#elif defined(_MSC_VER)
-	_WriteStatusReg(ARM64_FPCR, _ReadStatusReg(ARM64_FPCR) | (1 << 24));
-#endif
 #endif
 }
 
@@ -52,11 +42,7 @@ void nnNfp_update();
 
 namespace coreinit
 {
-#ifdef __arm64__
 	void __OSFiberThreadEntry(uint32, uint32);
-#else
-	void __OSFiberThreadEntry(void* thread);
-#endif
 	void __OSAddReadyThreadToRunQueue(OSThread_t* thread);
 	void __OSRemoveThreadFromRunQueues(OSThread_t* thread);
 };
@@ -1338,14 +1324,9 @@ namespace coreinit
 		__OSThreadStartTimeslice(hostThread->m_thread, &hostThread->ppcInstance);
 	}
 
-#ifdef __arm64__
 	void __OSFiberThreadEntry(uint32 _high, uint32 _low)
 	{
 		uint64 _thread = (uint64) _high << 32 | _low;
-#else
-	void __OSFiberThreadEntry(void* _thread)
-	{
-#endif
 		OSHostThread* hostThread = (OSHostThread*)_thread;
 
 		enableFlushDenormalsToZero();
@@ -1376,41 +1357,12 @@ namespace coreinit
 		}
 	}
 
-#if BOOST_OS_LINUX
-	#include <unistd.h>
-	#include <sys/prctl.h>
-
-	std::vector<pid_t> g_schedulerThreadIds;
-	std::mutex g_schedulerThreadIdsLock;
-
-	std::vector<pid_t>& OSGetSchedulerThreadIds()
-	{
-		std::lock_guard schedulerThreadIdsLockGuard(g_schedulerThreadIdsLock);
-		return g_schedulerThreadIds;
-	}
-#endif
-
 	void OSSchedulerCoreEmulationThread(void* _assignedCoreIndex)
 	{
 		SetThreadName(fmt::format("OSSched[core={}]", (uintptr_t)_assignedCoreIndex).c_str());
 		t_assignedCoreIndex = (sint32)(uintptr_t)_assignedCoreIndex;
 
 		enableFlushDenormalsToZero();
-
-#if BOOST_OS_LINUX
-		if (g_gdbstub)
-		{
-			// need to allow the GDBStub to attach to our thread
-			prctl(PR_SET_DUMPABLE, (unsigned long)1);
-			prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY);
-		}
-
-		pid_t tid = gettid();
-		{
-			std::lock_guard schedulerThreadIdsLockGuard(g_schedulerThreadIdsLock);
-			g_schedulerThreadIds.emplace_back(tid);
-		}
-#endif
 
 		t_schedulerFiber = Fiber::PrepareCurrentThread();
 
@@ -1463,12 +1415,6 @@ namespace coreinit
 			threadItr.join();
 		sSchedulerThreads.clear();
 		g_schedulerThreadHandles.clear();
-#if BOOST_OS_LINUX
-		{
-			std::lock_guard schedulerThreadIdsLockGuard(g_schedulerThreadIdsLock);
-			g_schedulerThreadIds.clear();
-		}
-#endif
 		// clean up all fibers
 		for (auto& it : g_idleLoopFiber)
 		{

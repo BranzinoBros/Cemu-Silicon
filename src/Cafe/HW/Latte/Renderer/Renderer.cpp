@@ -16,19 +16,6 @@ bool Renderer::GetVRAMInfo(int& usageInMB, int& totalInMB) const
 {
 	usageInMB = totalInMB = -1;
 	
-#if BOOST_OS_WINDOWS
-	if (m_dxgi_wrapper)
-	{
-		DXGI_QUERY_VIDEO_MEMORY_INFO info{};
-		if (m_dxgi_wrapper->QueryVideoMemoryInfo(info))
-		{
-			totalInMB = (info.Budget / 1000) / 1000;
-			usageInMB = (info.CurrentUsage / 1000) / 1000;
-			return true;
-		}
-	}
-#endif
-
 	return false;
 }
 

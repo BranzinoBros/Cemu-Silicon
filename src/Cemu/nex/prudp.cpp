@@ -509,13 +509,8 @@ prudpClient::prudpClient(uint32 dstIp, uint16 dstPort, const char* key)
 			break;
 	}
 	// set socket to non-blocking mode
-#if BOOST_OS_WINDOWS
-	u_long nonBlockingMode = 1; // 1 to enable non-blocking socket
-	ioctlsocket(m_socketUdp, FIONBIO, &nonBlockingMode);
-#else
 	int flags = fcntl(m_socketUdp, F_GETFL);
 	fcntl(m_socketUdp, F_SETFL, flags | O_NONBLOCK);
-#endif
 	// generate frequently used parameters
 	m_srcVPort = PRUDP_VPORT(prudpPacket::STREAM_TYPE_SECURE, 0xF);
 	m_dstVPort = PRUDP_VPORT(prudpPacket::STREAM_TYPE_SECURE, 0x1);

@@ -15,11 +15,6 @@
 #include <wx/msgdlg.h>
 #include <wx/stdpaths.h>
 
-#ifndef BOOST_OS_WINDOWS
-#include <unistd.h>
-#include <sys/stat.h>
-#endif
-
 #include <curl/curl.h>
 #include <boost/tokenizer.hpp>
 #include <openssl/rand.h>
@@ -163,28 +158,8 @@ static bool VerifyUpdateResponseSignature(std::string_view message, std::string 
 static std::string GetPlatformUpdateIdentifier()
 {
 	std::string identifier;
-#if BOOST_OS_LINUX
-	const char* appImagePath = std::getenv("APPIMAGE");
-	if (appImagePath && *appImagePath)
-		identifier.append("linux_appimage");
-	else
-		return "";
-#elif BOOST_OS_WINDOWS
-	identifier.append("windows");
-#elif BOOST_OS_MACOS
 	identifier.append("macos_bundle");
-#elif BOOST_OS_BSD
-	return ""; // BSD users must update from source
-#else
-	return "";
-#endif
-#if defined(__aarch64__)
 	identifier.append("_aarch64");
-#elif defined(ARCH_X86_64)
-	identifier.append("_x86_64");
-#else
-	return "";
-#endif
 	return identifier;
 }
 
@@ -520,65 +495,6 @@ bool CemuUpdateWindow::ExtractZipUpdate(const fs::path& zipname, const fs::path&
 	return true;
 }
 
-#if BOOST_OS_WINDOWS
-bool CemuUpdateWindow::WorkerThread_Windows()
-{
-	const auto tmppath = fs::temp_directory_path() / L"cemu_update";
-	std::error_code ec;
-	if (exists(tmppath))
-		remove_all(tmppath, ec);
-	const auto updateSrcFile = tmppath / L"update.zip";
-	if (!DownloadCemuUpdateFile(m_downloadUrl, updateSrcFile))
-		return false;
-	if (m_order == WorkerOrder::Exit)
-		return false;
-	// extract and replace files
-	if (!ExtractZipUpdate(updateSrcFile, ActiveSettings::GetExecutablePath().parent_path()))
-	{
-		cemuLog_log(LogType::Force, "Extracting Cemu zip failed");
-		return false;
-	}
-	SubmitWorkerResult(Result::ExtractSuccess);
-	// set relaunch path
-	fs::path newExePath = ActiveSettings::GetExecutablePath();
-	newExePath = newExePath.parent_path().append("Cemu.exe");
-	m_restartFile = newExePath;
-	return true;
-}
-#endif
-
-#if BOOST_OS_LINUX
-bool CemuUpdateWindow::WorkerThread_AppImage()
-{
-	const auto tmppath = fs::temp_directory_path() / L"cemu_update";
-	std::error_code ec;
-	if (exists(tmppath, ec))
-		remove_all(tmppath, ec);
-	const auto updateSrcFile = tmppath / L"Cemu.AppImage";
-	if (!DownloadCemuUpdateFile(m_downloadUrl, updateSrcFile))
-		return false;
-	if (m_order == WorkerOrder::Exit)
-		return false;
-	const char* appimage_path = std::getenv("APPIMAGE");
-	auto backupExecutable = fs::path(appimage_path);
-	backupExecutable.replace_extension( _utf8ToPath(_pathToUtf8(backupExecutable.extension()).append(".backup")));
-	const char* filePath = updateSrcFile.c_str();
-	mode_t permissions = S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH;
-	fs::rename(appimage_path, backupExecutable, ec);
-	if (ec)
-	{
-		cemuLog_log(LogType::Force, "Failed to rename current .AppImage for update replacement");
-		return false;
-	}
-	m_restartFile = appimage_path;
-	chmod(filePath, permissions);
-	wxString wxAppPath = wxString::FromUTF8(appimage_path);
-	wxCopyFile (wxString::FromUTF8(_pathToUtf8(updateSrcFile)), wxAppPath);
-	return true;
-}
-#endif
-
-#if BOOST_OS_MACOS
 bool CemuUpdateWindow::WorkerThread_MacBundle()
 {
 	const fs::path tempPath = fs::temp_directory_path() / "cemu_update";
@@ -707,7 +623,6 @@ fi
     m_restartFile = scriptPath;
     return true;
 }
-#endif
 
 void CemuUpdateWindow::WorkerThread()
 {
@@ -742,15 +657,7 @@ void CemuUpdateWindow::WorkerThread()
 			// download update
 			const std::string url = m_downloadUrl;
 			bool r = false;
-#if BOOST_OS_WINDOWS
-			r = WorkerThread_Windows();
-#elif BOOST_OS_LINUX
-			r = WorkerThread_AppImage();
-#elif BOOST_OS_BSD
-			// dummy placeholder on BSD for now
-#elif BOOST_OS_MACOS
 			r = WorkerThread_MacBundle();
-#endif
 			// update done
 			if (r)
 			{

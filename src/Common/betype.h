@@ -24,13 +24,6 @@ constexpr T SwapEndian(T value)
 {
 	if constexpr (std::is_integral_v<T>)
 	{
-#ifdef _MSC_VER
-		if constexpr (sizeof(T) == sizeof(uint32_t))
-		{
-			return (T)_byteswap_ulong(value);
-		}
-#endif
-
 		return (T)bswap((std::make_unsigned_t<T>)value);
 	}
 	else if constexpr (std::is_floating_point_v<T>)

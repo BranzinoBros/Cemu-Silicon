@@ -462,15 +462,11 @@ void FileCache::_addFileInternal(uint64 name1, uint64 name2, const uint8* fileDa
 	// write file data
 	fileStream->SetPosition(this->dataOffset + currentStartOffset);
 	fileStream->writeData(rawData, rawSize);
-#ifdef __APPLE__
     fileStream->Flush();
-#endif
 	// write file table entry
 	fileStream->SetPosition(this->dataOffset + this->fileTableOffset + (uint64)(sizeof(FileTableEntry)*entryIndex));
 	fileStream->writeData(this->fileTableEntries + entryIndex, sizeof(FileTableEntry));
-#ifdef __APPLE__
     fileStream->Flush();
-#endif
 	if (isCompressed)
 		free(rawData);
 }

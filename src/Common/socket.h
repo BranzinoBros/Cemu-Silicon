@@ -1,15 +1,5 @@
 #pragma once
 
-#if BOOST_OS_WINDOWS
-
-#include <WinSock2.h>
-#include <ws2tcpip.h>
-typedef int socklen_t;
-
-#define GETLASTERR WSAGetLastError()
-
-#elif BOOST_OS_UNIX
-
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
@@ -31,4 +21,3 @@ typedef int socklen_t;
 #define SOCKET_ERROR -1
 #define INVALID_SOCKET -1
 
-#endif // BOOST_OS_UNIX

@@ -7,9 +7,7 @@
 
 #include "Common/socket.h"
 
-#if BOOST_OS_UNIX
 #include <netinet/tcp.h>
-#endif
 
 #define WU_AF_INET			2
 
@@ -87,19 +85,12 @@ bool sockLibReady = false;
 void nsysnetExport_socket_lib_init(PPCInterpreter_t* hCPU)
 {
 	sockLibReady = true;
-#if BOOST_OS_WINDOWS
-	WSADATA wsa;
-	WSAStartup(MAKEWORD(2, 2), &wsa);
-#endif // BOOST_OS_WINDOWS
 	osLib_returnFromFunction(hCPU, 0); // 0 -> Success
 }
 
 void nsysnetExport_socket_lib_finish(PPCInterpreter_t* hCPU)
 {
 	sockLibReady = false;
-#if BOOST_OS_WINDOWS
-	WSACleanup();
-#endif // BOOST_OS_WINDOWS
 	osLib_returnFromFunction(hCPU, 0); // 0 -> Success
 }
 
@@ -242,10 +233,6 @@ sint32 _getFreeSocketHandle()
 	return 0;
 }
 
-#if BOOST_OS_WINDOWS
-#define SIO_UDP_CONNRESET _WSAIOW(IOC_VENDOR,12)
-#endif // BOOST_OS_WINDOWS
-
 WUSOCKET nsysnet_createVirtualSocket(sint32 family, sint32 type, sint32 protocol)
 {
 	sint32 s = _getFreeSocketHandle();
@@ -263,15 +250,6 @@ WUSOCKET nsysnet_createVirtualSocket(sint32 family, sint32 type, sint32 protocol
 	virtualSocketTable[s - 1] = vs;
 	// init host socket
 	vs->s = socket(family, type, protocol);
-	#if BOOST_OS_WINDOWS
-	// disable reporting of PORT_UNREACHABLE for UDP sockets
-	if (protocol == IPPROTO_UDP)
-	{
-		BOOL bNewBehavior = FALSE;
-		DWORD dwBytesReturned = 0;
-		WSAIoctl(vs->s, SIO_UDP_CONNRESET, &bNewBehavior, sizeof bNewBehavior, NULL, 0, &dwBytesReturned, NULL, NULL);
-	}
-	#endif // BOOST_OS_WINDOWS
 	return vs->handle;
 }
 
@@ -288,19 +266,6 @@ WUSOCKET nsysnet_createVirtualSocketFromExistingSocket(SOCKET existingSocket)
 	}
 	virtualSocket_t* vs = (virtualSocket_t*)malloc(sizeof(virtualSocket_t));
 	memset(vs, 0, sizeof(virtualSocket_t));
-#if BOOST_OS_WINDOWS
-	// SO_TYPE -> type
-	// SO_BSP_STATE -> protocol + other info
-	// SO_PROTOCOL_INFO -> protocol + type?
-
-	WSAPROTOCOL_INFO protocolInfo = { 0 };
-	int optLen = sizeof(protocolInfo);
-	getsockopt(existingSocket, SOL_SOCKET, SO_PROTOCOL_INFO, (char*)&protocolInfo, &optLen);
-	// todo - translate protocolInfo 
-	vs->family = protocolInfo.iAddressFamily;
-	vs->type = protocolInfo.iSocketType;
-	vs->protocol = protocolInfo.iSocketType;
-#else
 	{
 		int type;
 		socklen_t optlen;
@@ -314,7 +279,6 @@ WUSOCKET nsysnet_createVirtualSocketFromExistingSocket(SOCKET existingSocket)
 		getsockname(vs->s, &saddr, &len);
 		vs->family = saddr.sa_family;
 	}
-#endif
 
 	vs->handle = s;
 	virtualSocketTable[s - 1] = vs;
@@ -460,16 +424,12 @@ void nsysnetExport_socketclose(PPCInterpreter_t* hCPU)
 }
 sint32 _socket_nonblock(SOCKET s, u_long mode)
 {
-#if BOOST_OS_WINDOWS
-	return ioctlsocket(s, FIONBIO, &mode);
-#else
 	int flags = fcntl(s, F_GETFL);
 	if(mode)
 		flags |= O_NONBLOCK;
 	else
 		flags &= ~O_NONBLOCK;
 	return fcntl(s, F_SETFL, flags);
-#endif
 }
 void nsysnetExport_setsockopt(PPCInterpreter_t* hCPU)
 {
@@ -1083,13 +1043,11 @@ void _translateFDSet(fd_set* hostSet, struct wu_fd_set* fdset, sint32 nfds, int 
 	if (fdset == NULL)
 		return;
 
-#if BOOST_OS_UNIX
 	int maxfd;
 	if(hostnfds)
 		maxfd = *hostnfds;
 	else
 		maxfd = -1;
-#endif
 
 	uint32 mask = fdset->mask;
 	for (sint32 i = 0; i < nfds; i++)
@@ -1101,18 +1059,14 @@ void _translateFDSet(fd_set* hostSet, struct wu_fd_set* fdset, sint32 nfds, int 
 		if(vs == NULL)
 			continue; // socket invalid
 
-#if BOOST_OS_UNIX
 		if(vs->s > maxfd)
 			maxfd = vs->s;
-#endif
 
 		FD_SET(vs->s, hostSet);
 	}
 
-#if BOOST_OS_UNIX
 	if(hostnfds)
 		*hostnfds = maxfd;
-#endif
 }
 
 void _translateFDSetRev(struct wu_fd_set* fdset, fd_set* hostSet, sint32 nfds)
@@ -1120,21 +1074,11 @@ void _translateFDSetRev(struct wu_fd_set* fdset, fd_set* hostSet, sint32 nfds)
 	if (fdset == NULL)
 		return;
 	uint32 mask = _swapEndianU32(0);
-#if BOOST_OS_WINDOWS
-	for (sint32 i = 0; i < (sint32)hostSet->fd_count; i++)
-	{
-		sint32 virtualSocketHandle = nsysnet_getVirtualSocketHandleFromHostHandle(hostSet->fd_array[i]);
-		if (virtualSocketHandle < 0)
-			cemu_assert_debug(false);
-		mask |= (1<<virtualSocketHandle);
-	}
-#else
 	for (sint32 i = 0; i < WU_SOCKET_LIMIT; i++)
 	{
 		if (virtualSocketTable[i] && virtualSocketTable[i]->s && FD_ISSET(virtualSocketTable[i]->s, hostSet))
 			mask |= (1 << virtualSocketTable[i]->handle);
 	}
-#endif
 	fdset->mask = mask;
 
 }
@@ -1620,9 +1564,7 @@ void nsysnetExport_recvfrom(PPCInterpreter_t* hCPU)
 		t.tv_sec = 0;
 		t.tv_usec = 0;
 		int nfds = 0;
-#if BOOST_OS_UNIX
 		nfds = vs->s + 1;
-#endif
 		sint32 count = select(nfds, &fd_read, NULL, &fd_exceptions, &t);
 		if (count > 0)
 		{
@@ -1775,9 +1717,7 @@ void nsysnetExport_recvfrom_ex(PPCInterpreter_t* hCPU)
 		t.tv_sec = 0;
 		t.tv_usec = 0;
 		int nfds = 0;
-#if BOOST_OS_UNIX
 		nfds = vs->s + 1;
-#endif
 		sint32 count = select(nfds, &fd_read, NULL, &fd_exceptions, &t);
 		if (count > 0)
 		{

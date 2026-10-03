@@ -31,12 +31,6 @@ InputManager::InputManager()
 #ifdef HAS_SDL
 	create_provider<SDLControllerProvider>();
 #endif
-#if HAS_XINPUT
-	create_provider<XInputControllerProvider>();
-#endif
-#if HAS_DIRECTINPUT
-	create_provider<DirectInputControllerProvider>();
-#endif
 #if HAS_DSU
 	create_provider<DSUControllerProvider>();
 #endif

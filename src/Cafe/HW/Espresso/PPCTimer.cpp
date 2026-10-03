@@ -2,12 +2,6 @@
 #include "config/ActiveSettings.h"
 #include "util/helpers/fspinlock.h"
 #include "util/highresolutiontimer/HighResolutionTimer.h"
-#include "Common/cpu_features.h"
-
-#if defined(ARCH_X86_64)
-#include <immintrin.h>
-#pragma intrinsic(__rdtsc)
-#endif
 
 uint64 _rdtscLastMeasure = 0;
 uint64 _rdtscFrequency = 0;
@@ -33,11 +27,6 @@ uint64 muldiv64(uint64 a, uint64 b, uint64 d)
 
 uint64 PPCTimer_estimateRDTSCFrequency()
 {
-    #if defined(ARCH_X86_64)
-	if (!g_CPUFeatures.x86.invariant_tsc)
-		cemuLog_log(LogType::Force, "Invariant TSC not supported");
-    #endif
-
 	_mm_mfence();
 	uint64 tscStart = __rdtsc();
 	unsigned int startTime = GetTickCount();
@@ -140,14 +129,9 @@ uint64 PPCTimer_getFromRDTSC()
 		_rdtscLastMeasure = rdtscCurrentMeasure; // only travel forward in time
 
 	uint8 c = 0;
-	#if BOOST_OS_WINDOWS
-	c = _addcarry_u64(c, _rdtscAcc.low, diff.low, &_rdtscAcc.low);
-	_addcarry_u64(c, _rdtscAcc.high, diff.high, &_rdtscAcc.high);
-	#else
 	// requires casting because of long / long long nonesense
 	c = _addcarry_u64(c, _rdtscAcc.low, diff.low, (unsigned long long*)&_rdtscAcc.low);
 	_addcarry_u64(c, _rdtscAcc.high, diff.high, (unsigned long long*)&_rdtscAcc.high);
-	#endif
 
 	uint64 remainder;
 	uint64 elapsedTick = _udiv128(_rdtscAcc.high, _rdtscAcc.low, _rdtscFrequency, &remainder);

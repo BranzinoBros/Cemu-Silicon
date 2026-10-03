@@ -24,22 +24,12 @@
 // }
 // #endif
 
-// arch defines
-
-#if defined(__x86_64__) || defined(_M_X64) || defined(_M_AMD64)
-#define ARCH_X86_64
-#endif
-
 // c includes
 #include <cstdint>
 #include <cstdlib>
 #include <cmath>
 #include <ctime>
 #include <cassert>
-
-#if defined(ARCH_X86_64)
-#include <immintrin.h>
-#endif
 
 // c++ includes
 #include <string>
@@ -98,14 +88,6 @@ using sint32 = int32_t;
 using sint16 = int16_t;
 using sint8 = int8_t;
 
-#if _MSC_VER
-#ifndef _SSIZE_T_DEFINED
-#define _SSIZE_T_DEFINED
-#include <basetsd.h>
-typedef SSIZE_T ssize_t;
-#endif
-#endif
-
 // types with explicit big endian order
 #include "betype.h"
 
@@ -154,75 +136,19 @@ inline std::string _tr(fmt::format_string<TArgs...> text, TArgs... args)
 
 // manual endian-swapping
 
-#if _MSC_VER
 inline uint64 _swapEndianU64(uint64 v)
 {
-	return _byteswap_uint64(v);
-}
-
-inline uint32 _swapEndianU32(uint32 v)
-{
-	return _byteswap_ulong(v);
-}
-
-inline sint32 _swapEndianS32(sint32 v)
-{
-	return (sint32)_byteswap_ulong((uint32)v);
-}
-
-inline uint16 _swapEndianU16(uint16 v)
-{
-	return (v >> 8) | (v << 8);
-}
-
-inline sint16 _swapEndianS16(sint16 v)
-{
-	return (sint16)(((uint16)v >> 8) | ((uint16)v << 8));
-}
-#else
-inline uint64 _swapEndianU64(uint64 v)
-{
-#if BOOST_OS_MACOS
     return OSSwapInt64(v);
-#elif BOOST_OS_BSD
-#ifdef __OpenBSD__
-    return swap64(v);
-#else // FreeBSD and NetBSD
-    return bswap64(v);
-#endif
-#else
-    return bswap_64(v);
-#endif
 }
 
 inline uint32 _swapEndianU32(uint32 v)
 {
-#if BOOST_OS_MACOS
     return OSSwapInt32(v);
-#elif BOOST_OS_BSD
-#ifdef __OpenBSD__
-    return swap32(v);
-#else // FreeBSD and NetBSD
-    return bswap32(v);
-#endif
-#else
-    return bswap_32(v);
-#endif
 }
 
 inline sint32 _swapEndianS32(sint32 v)
 {
-#if BOOST_OS_MACOS
     return (sint32)OSSwapInt32((uint32)v);
-#elif BOOST_OS_BSD
-#ifdef __OpenBSD__
-    return (sint32)swap32((uint32)v);
-#else // FreeBSD and NetBSD
-    return (sint32)bswap32((uint32)v);
-#endif
-#else
-    return (sint32)bswap_32((uint32)v);
-#endif
 }
 
 inline uint16 _swapEndianU16(uint16 v)
@@ -266,7 +192,6 @@ typedef union _LARGE_INTEGER {
     inline T& operator|= (T& a, T b) { return reinterpret_cast<T&>( reinterpret_cast<std::underlying_type<T>::type&>(a) |= static_cast<std::underlying_type<T>::type>(b) ); }   \
     inline T& operator&= (T& a, T b) { return reinterpret_cast<T&>( reinterpret_cast<std::underlying_type<T>::type&>(a) &= static_cast<std::underlying_type<T>::type>(b) ); }   \
     inline T& operator^= (T& a, T b) { return reinterpret_cast<T&>( reinterpret_cast<std::underlying_type<T>::type&>(a) ^= static_cast<std::underlying_type<T>::type>(b) ); }
-#endif
 
 template<typename T>
 inline T GetBits(T value, uint32 index, uint32 numBits)
@@ -283,20 +208,14 @@ inline void SetBits(T& value, uint32 index, uint32 numBits, uint32 bitValue)
 	value |= (bitValue << index);
 }
 
-#if !defined(_MSC_VER) || defined(__clang__) // clang-cl does not have built-in _udiv128
 inline uint64 _udiv128(uint64 highDividend, uint64 lowDividend, uint64 divisor, uint64 *remainder)
 {
     unsigned __int128 dividend = (((unsigned __int128)highDividend) << 64) | ((unsigned __int128)lowDividend);
     *remainder = (uint64)((dividend % divisor) & 0xFFFFFFFFFFFFFFFF);
     return       (uint64)((dividend / divisor) & 0xFFFFFFFFFFFFFFFF);
 }
-#endif
 
-#if defined(_MSC_VER)
-    #define UNREACHABLE __assume(false)
-	#define ASSUME(__cond) __assume(__cond)
-	#define TLS_WORKAROUND_NOINLINE // no-op for MSVC as it has a flag for fiber-safe TLS optimizations
-#elif defined(__GNUC__) && !defined(__llvm__)
+#if defined(__GNUC__) && !defined(__llvm__)
     #define UNREACHABLE __builtin_unreachable()
 	#define ASSUME(__cond) __attribute__((assume(__cond)))
 	#define TLS_WORKAROUND_NOINLINE __attribute__((noinline))
@@ -308,34 +227,20 @@ inline uint64 _udiv128(uint64 highDividend, uint64 lowDividend, uint64 divisor, 
     #error Unknown compiler
 #endif
 
-#if defined(_MSC_VER)
-    #define DEBUG_BREAK __debugbreak()
-#else
-    #include <csignal>
-    #define DEBUG_BREAK raise(SIGTRAP) 
-#endif
+#include <csignal>
+#define DEBUG_BREAK raise(SIGTRAP) 
 
-#if defined(_MSC_VER)
-    #define DLLEXPORT __declspec(dllexport)
-#elif defined(__GNUC__)
-    #if BOOST_OS_WINDOWS
-        #define DLLEXPORT __attribute__((dllexport))
-    #else
-        #define DLLEXPORT
-    #endif
+#if defined(__GNUC__)
+    #define DLLEXPORT
 #else
     #error No definition for DLLEXPORT
 #endif
 
-#if BOOST_OS_WINDOWS
-	#define NOEXPORT
-#elif defined(__GNUC__)
+#if defined(__GNUC__)
 	#define NOEXPORT __attribute__ ((visibility ("hidden")))
 #endif
 
-#if defined(_MSC_VER)
-#define FORCE_INLINE __forceinline
-#elif defined(__GNUC__) || defined(__clang__)
+#if defined(__GNUC__) || defined(__clang__)
 #define FORCE_INLINE inline __attribute__((always_inline))
 #else
 #define FORCE_INLINE inline
@@ -343,9 +248,7 @@ inline uint64 _udiv128(uint64 highDividend, uint64 lowDividend, uint64 divisor, 
 
 FORCE_INLINE int BSF(uint32 v) // returns index of first bit set, counting from LSB. If v is 0 then result is undefined
 {
-#if defined(_MSC_VER)
-	return _tzcnt_u32(v); // TZCNT requires BMI1. But if not supported it will execute as BSF
-#elif defined(__GNUC__) || defined(__clang__)
+#if defined(__GNUC__) || defined(__clang__)
 	return __builtin_ctz(v);
 #else
 	return std::countr_zero(v);
@@ -353,7 +256,6 @@ FORCE_INLINE int BSF(uint32 v) // returns index of first bit set, counting from 
 }
 
 // On aarch64 we handle some of the x86 intrinsics by implementing them as wrappers
-#if defined(__aarch64__)
 
 inline void _mm_pause()
 {
@@ -380,8 +282,6 @@ inline unsigned char _addcarry_u64(unsigned char carry, unsigned long long a, un
         return 1;
     return 0;
 }
-
-#endif
 
 // asserts
 
@@ -480,43 +380,13 @@ bool match_any_of(T1&& value, Types&&... others)
 // we cache the frequency in a static variable
 [[nodiscard]] static std::chrono::high_resolution_clock::time_point now_cached() noexcept
 {
-#ifdef _WIN32
-    // get current time
-	static const long long _Freq = _Query_perf_frequency();	// doesn't change after system boot
-	const long long _Ctr = _Query_perf_counter();
-	static_assert(std::nano::num == 1, "This assumes period::num == 1.");
-	const long long _Whole = (_Ctr / _Freq) * std::nano::den;
-	const long long _Part = (_Ctr % _Freq) * std::nano::den / _Freq;
-	return (std::chrono::high_resolution_clock::time_point(std::chrono::nanoseconds(_Whole + _Part)));
-#else
     return std::chrono::high_resolution_clock::now();
-#endif
 }
 
 [[nodiscard]] static std::chrono::steady_clock::time_point tick_cached() noexcept
 {
-#if BOOST_OS_WINDOWS
-    // get current time
-	static const long long _Freq = _Query_perf_frequency();	// doesn't change after system boot
-	const long long _Ctr = _Query_perf_counter();
-	static_assert(std::nano::num == 1, "This assumes period::num == 1.");
-	const long long _Whole = (_Ctr / _Freq) * std::nano::den;
-	const long long _Part = (_Ctr % _Freq) * std::nano::den / _Freq;
-	return (std::chrono::steady_clock::time_point(std::chrono::nanoseconds(_Whole + _Part)));
-#elif BOOST_OS_LINUX
-	struct timespec tp;
-	clock_gettime(CLOCK_MONOTONIC_RAW, &tp);
-	return std::chrono::steady_clock::time_point(
-		std::chrono::seconds(tp.tv_sec) + std::chrono::nanoseconds(tp.tv_nsec));
-#elif BOOST_OS_MACOS
 	return std::chrono::steady_clock::time_point(
 		std::chrono::nanoseconds(clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW)));
-#elif BOOST_OS_BSD
-	struct timespec tp;
-	clock_gettime(CLOCK_MONOTONIC, &tp);
-	return std::chrono::steady_clock::time_point(
-		std::chrono::seconds(tp.tv_sec) + std::chrono::nanoseconds(tp.tv_nsec));
-#endif
 }
 
 // Some string conversion helpers because C++20 std::u8string is too cumbersome to use in practice

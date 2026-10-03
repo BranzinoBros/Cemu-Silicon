@@ -15,9 +15,6 @@ namespace H264
 	{
 		static void* ivd_aligned_malloc(void* ctxt, WORD32 alignment, WORD32 size)
 		{
-#ifdef _WIN32
-			return _aligned_malloc(size, alignment);
-#else
 			// alignment is atleast sizeof(void*)
 			alignment = std::max<WORD32>(alignment, sizeof(void*));
 
@@ -34,16 +31,11 @@ namespace H264
 			void* temp;
 			posix_memalign(&temp, (size_t)alignment, (size_t)size);
 			return temp;
-#endif
 		}
 
 		static void ivd_aligned_free(void* ctxt, void* buf)
 		{
-#ifdef _WIN32
-			_aligned_free(buf);
-#else
 			free(buf);
-#endif
 		}
 
 	  public:

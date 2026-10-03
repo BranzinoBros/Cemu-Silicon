@@ -1,7 +1,6 @@
 #include "Cafe/HW/Latte/ISA/RegDefines.h"
 #include "Cafe/OS/libs/gx2/GX2.h" // todo - remove dependency
 #include "Cafe/HW/Latte/Core/Latte.h"
-#include "Cafe/HW/Latte/Core/LatteDraw.h"
 #include "Cafe/HW/Latte/Core/LatteShader.h"
 #include "Cafe/HW/Latte/Core/LatteAsyncCommands.h"
 #include "Cafe/GameProfile/GameProfile.h"
@@ -268,10 +267,6 @@ void LatteThread_Exit()
 	}
 	// reset GPU7 state
 	std::memset(&LatteGPUState, 0, sizeof(LatteGPUState));
-	#if BOOST_OS_WINDOWS
-	ExitThread(0);
-	#else
 	pthread_exit(nullptr);
-	#endif
 	cemu_assert_unimplemented();
 }

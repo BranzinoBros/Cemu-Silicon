@@ -1,9 +1,5 @@
 #pragma once
 
-#if BOOST_OS_WINDOWS
-#include <mmreg.h>
-#endif
-
 #include "config/CemuConfig.h"
 
 class IAudioAPI
@@ -39,6 +35,7 @@ public:
 		Portal
 	};
 
+	// the values are stored in settings.xml, so the former Windows-only entries keep their slots
 	enum AudioAPI
 	{
 		DirectSound = 0,
@@ -77,9 +74,6 @@ public:
 	static std::vector<DeviceDescriptionPtr> GetDevices(AudioAPI api);
 
 protected:
-#if BOOST_OS_WINDOWS
-	WAVEFORMATEXTENSIBLE m_wfx{};
-#endif
 	
 	uint32 m_samplerate, m_channels, m_samplesPerBlock, m_bitsPerSample;
 	uint32 m_bytesPerBlock;
@@ -92,7 +86,6 @@ protected:
 
 private:
 	static uint32 s_audioDelay;
-	void InitWFX(sint32 samplerate, sint32 channels, sint32 bits_per_sample);
 	static AudioChannels AudioTypeToChannels(AudioType type);
 	static std::wstring GetDeviceFromType(AudioType type);
 	static sint32 GetVolumeFromType(AudioType type);

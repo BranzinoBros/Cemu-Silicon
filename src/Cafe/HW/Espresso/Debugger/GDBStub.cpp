@@ -12,9 +12,7 @@
 #include "Cafe/HW/Espresso/EspressoISA.h"
 #include "Common/socket.h"
 
-#if BOOST_OS_UNIX
 #include <netinet/tcp.h>
-#endif
 
 #define GET_THREAD_ID(threadPtr) memory_getVirtualOffsetFromPointer(threadPtr)
 #define GET_THREAD_BY_ID(threadId) (OSThread_t*)memory_getPointerFromPhysicalOffset(threadId)
@@ -225,10 +223,6 @@ std::unique_ptr<GDBServer> g_gdbstub;
 GDBServer::GDBServer(uint16 port)
 	: m_port(port)
 {
-#if BOOST_OS_WINDOWS
-	WSADATA wsa;
-	WSAStartup(MAKEWORD(2, 2), &wsa);
-#endif
 }
 
 GDBServer::~GDBServer()
@@ -244,9 +238,6 @@ GDBServer::~GDBServer()
 	{
 		closesocket(m_server_socket);
 	}
-#if BOOST_OS_WINDOWS
-	WSACleanup();
-#endif
 
 	m_stopRequested = false;
 	m_thread.join();

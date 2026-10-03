@@ -78,9 +78,6 @@ public:
 	void TogglePadView();
 	void OpenPPCDebugger();
 
-#if BOOST_OS_WINDOWS
-	WXLRESULT MSWWindowProc(WXUINT nMsg, WXWPARAM wParam, WXLPARAM lParam) override;
-#endif
 	void OpenSettings();
 
 	PadViewFrame* GetPadView() const { return m_padView; }

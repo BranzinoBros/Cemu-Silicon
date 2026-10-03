@@ -765,18 +765,6 @@ namespace nsyshid::backend::libusb
 		const int ret = DoForEachInterface(m_config_descriptors, config_num, [this](uint8 i) {
 		// On macos detaching would fail without root or entitlement.
 		// We assume user is using GCAdapterDriver and therefore don't want to detach anything
-#if !defined(__APPLE__)
-			if (libusb_kernel_driver_active(this->m_libusbHandle, i))
-			{
-				const int ret2 = libusb_detach_kernel_driver(this->m_libusbHandle, i);
-				if (ret2 < LIBUSB_SUCCESS && ret2 != LIBUSB_ERROR_NOT_FOUND &&
-					ret2 != LIBUSB_ERROR_NOT_SUPPORTED)
-				{
-					cemuLog_log(LogType::Force, "Failed to detach kernel driver {}", libusb_error_name(ret2));
-					return ret2;
-				}
-			}
-#endif
 			return libusb_claim_interface(this->m_libusbHandle, i);
 		});
 		if (ret < LIBUSB_SUCCESS)

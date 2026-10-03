@@ -7,11 +7,6 @@
 class LaunchSettings
 {
 public:
-	// winmain
-	static std::optional<int> HandleCommandline(const wchar_t* lpCmdLine);
-	// wmain
-	static std::optional<int> HandleCommandline(int argc, wchar_t* argv[]);
-	// main (unix)
 	static std::optional<int> HandleCommandline(int argc, char* argv[]);
 
 	static std::optional<int> HandleCommandline(const std::vector<std::wstring>& args);

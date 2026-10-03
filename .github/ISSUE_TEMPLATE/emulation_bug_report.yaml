@@ -46,8 +46,8 @@ body:
       description: "Your PC specifications. Usually only the operating system and graphics card is important. But feel free to add more info."
       placeholder: |
         Info        
-        OS: Windows 10
-        GPU: NVIDIA GeForce RTX 4090
+        OS: macOS 26.0
+        GPU: Apple M1 Max
       value: |
         OS: 
         GPU: 

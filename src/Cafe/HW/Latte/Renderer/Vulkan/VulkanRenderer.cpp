@@ -111,19 +111,7 @@ std::vector<VulkanRenderer::DeviceInfo> VulkanRenderer::GetDevices()
 	std::vector<const char*> requiredExtensions;
 	requiredExtensions.clear();
 	requiredExtensions.emplace_back(VK_KHR_SURFACE_EXTENSION_NAME);
-	#if BOOST_OS_WINDOWS
-	requiredExtensions.emplace_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
-	#elif BOOST_OS_LINUX || BOOST_OS_BSD
-	auto backend = WindowSystem::GetWindowInfo().window_main.backend;
-	if(backend == WindowSystem::WindowHandleInfo::Backend::X11)
-		requiredExtensions.emplace_back(VK_KHR_XLIB_SURFACE_EXTENSION_NAME);
-	#ifdef HAS_WAYLAND
-	else if (backend == WindowSystem::WindowHandleInfo::Backend::Wayland)
-		requiredExtensions.emplace_back(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME);
-	#endif
-	#elif BOOST_OS_MACOS
 	requiredExtensions.emplace_back(VK_EXT_METAL_SURFACE_EXTENSION_NAME);
-	#endif
 
 	VkApplicationInfo app_info{};
 	app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -362,136 +350,6 @@ void VulkanRenderer::GetDeviceFeatures()
 	m_featureControl.limits.calcUniformBufferAlignmentM1 = std::max(m_featureControl.limits.minUniformBufferOffsetAlignment, m_featureControl.limits.nonCoherentAtomSize) - 1;
 }
 
-#if BOOST_OS_LINUX
-#include <sys/wait.h>
-#include "resource/IconsFontAwesome5.h"
-
-int BreathOfTheWildChildProcessMain()
-{
-	InitializeGlobalVulkan();
-	struct sigaction sa{};
-	sa.sa_handler = [](int unused) { _exit(1); };
-
-	int ret = sigaction(SIGABRT, &sa, nullptr);
-
-	freopen("/dev/null", "w", stderr);
-
-	setenv("RADV_DEBUG", "llvm", 1);
-
-	VkInstanceCreateInfo create_info{};
-	create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-	VkInstance instance = VK_NULL_HANDLE;
-	if (vkCreateInstance(&create_info, nullptr, &instance) != VK_SUCCESS)
-		return 1;
-	InitializeInstanceVulkan(instance);
-
-	// this function will abort() when LLVM is absent
-	uint32_t count = 0;
-	vkEnumeratePhysicalDevices(instance, &count, nullptr);
-
-	vkDestroyInstance(instance, nullptr);
-	return 0;
-}
-
-static void LinuxBreathOfTheWildWorkaround(VkInstance& instance, const VkInstanceCreateInfo* create_info)
-{
-
-	// if the user specified either shader backend, do nothing.
-	// should parse the flag list but there are currently no other flags containing llvm or aco as a substring
-	const char* debugEnvC = getenv("RADV_DEBUG");
-	std::string_view debugEnv = debugEnvC != nullptr ? debugEnvC : "";
-	if (debugEnv.find("aco") != std::string_view::npos || debugEnv.find("llvm") != std::string_view::npos)
-		return;
-
-	uint32_t count = 0;
-	vkEnumeratePhysicalDevices(instance, &count, nullptr);
-
-	std::vector<VkPhysicalDevice> physicalDevices{count};
-	vkEnumeratePhysicalDevices(instance, &count, physicalDevices.data());
-
-	// Find the first AMD device using a RADV driver and store its version
-	int version = 0;
-	for (auto& i : physicalDevices)
-	{
-		VkPhysicalDeviceDriverProperties driverProps{};
-		driverProps.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES;
-		VkPhysicalDeviceProperties2 prop{};
-		prop.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
-		prop.pNext = &driverProps;
-		vkGetPhysicalDeviceProperties2(i, &prop);
-		if (prop.properties.vendorID != 0x1002 || driverProps.driverID != VK_DRIVER_ID_MESA_RADV)
-			continue;
-
-		version = prop.properties.driverVersion;
-		break;
-	}
-
-	if (version == 0)
-		return;
-
-
-	int major = VK_API_VERSION_MAJOR(version);
-	int minor = VK_API_VERSION_MINOR(version);
-	int patch = VK_API_VERSION_PATCH(version);
-
-	// If the driver is unaffected skip the workaround.
-	// affected drivers:
-	// 25.3.0 - 26.0.4
-	if ((major <= 25 && minor < 3) || (major == 26 && (minor > 0 || patch >= 5)) || major > 26)
-		return;
-
-	// check if running with LLVM would crash because mesa is LLVM-less.
-	int childID = fork();
-	if (childID == 0) // inside this if statement runs in child
-	{
-		setenv("CEMU_DETECT_RADV","1", 1);
-		execl("/proc/self/exe", "/proc/self/exe", nullptr);
-		_exit(2); // exec failed so err on the safe side and signal failure
-	}
-
-	int childStatus = 0;
-	waitpid(childID,  &childStatus, 0);
-
-	// if the process didn't exit cleanly or failed to determine LLVM status
-	if (!WIFEXITED(childStatus) || WEXITSTATUS(childStatus) == 2)
-	{
-		cemuLog_log(LogType::Force, "BOTW/RADV workaround not applied because detecting LLVM presence failed unexpectedly");
-		return;
-	}
-
-	if (WEXITSTATUS(childStatus) == 1)
-		cemuLog_log(LogType::Force, "BOTW/RADV workaround not applied because mesa was built without LLVM");
-
-	// only continue if the process exits with code zero, which means it didn't crash
-	if (WEXITSTATUS(childStatus) != 0)
-		return;
-
-	cemuLog_log(LogType::Force, "BOTW/RADV workaround active. Adding \"llvm\" to RADV_DEBUG environment variable");
-	if (debugEnv.empty())
-	{
-		setenv("RADV_DEBUG", "llvm", 1);
-	}
-	else
-	{
-		std::string appendedDebugEnv{debugEnv};
-		appendedDebugEnv.append(",llvm");
-		setenv("RADV_DEBUG", appendedDebugEnv.c_str(), 1);
-	}
-
-	// recreate the vulkan instance to update debug setting
-	vkDestroyInstance(instance, nullptr);
-	VkResult err = vkCreateInstance(create_info, nullptr, &instance);
-	// re-check for errors just in case.
-	if (err != VK_SUCCESS)
-		throw std::runtime_error(fmt::format("Unable to re-create a Vulkan instance after RADV/LLVM workaround: {}", err));
-	InitializeInstanceVulkan(instance);
-
-	LatteOverlay_pushNotification(std::string{(const char*)ICON_FA_EXCLAMATION_TRIANGLE} + "RADV_DEBUG=llvm set automatically to avoid crashing due to a driver bug. If possible update mesa to 26.0.5 or newer", 10'000);
-
-}
-
-#endif
-
 VulkanRenderer::VulkanRenderer() : Renderer(RendererAPI::Vulkan)
 {
 	glslang::InitializeProcess();
@@ -550,15 +408,6 @@ VulkanRenderer::VulkanRenderer() : Renderer(RendererAPI::Vulkan)
 
 	if (!InitializeInstanceVulkan(m_instance))
 		throw std::runtime_error("Unable to load instanced Vulkan functions");
-
-	// Workaround for BOTW + RADV. Runes like Magnesis and the camera cause GPU crashes.
-#if BOOST_OS_LINUX
-	uint64 currentTitleId = CafeSystem::GetForegroundTitleId();
-	if (currentTitleId == 0x00050000101c9500 || currentTitleId == 0x00050000101c9400 || currentTitleId == 0x00050000101c9300)
-	{
-		LinuxBreathOfTheWildWorkaround(m_instance, &create_info);
-	}
-#endif
 
 	uint32_t device_count = 0;
 	vkEnumeratePhysicalDevices(m_instance, &device_count, nullptr);
@@ -632,9 +481,6 @@ VulkanRenderer::VulkanRenderer() : Renderer(RendererAPI::Vulkan)
 		physDeviceProps.pNext = &physDeviceIDProps;
 		vkGetPhysicalDeviceProperties2(m_physicalDevice, &physDeviceProps);
 
-		#if BOOST_OS_WINDOWS
-		m_dxgi_wrapper = std::make_unique<DXGIWrapper>(physDeviceIDProps.deviceLUID);
-		#endif
 	}
 	catch (const std::exception& ex)
 	{
@@ -657,13 +503,8 @@ VulkanRenderer::VulkanRenderer() : Renderer(RendererAPI::Vulkan)
 	deviceFeatures.logicOp = deviceFeatures2.features.logicOp;
 	if (!deviceFeatures.logicOp) {
 		cemuLog_log(LogType::Force, "LogicOp not supported by the driver, some rendering issues might occur");
-#if BOOST_OS_MACOS
 		cemuLog_log(LogType::Force, "Install the privateapi variant of MoltenVK to get logicOp support on macOS");
-#endif
 	}
-#if !BOOST_OS_MACOS
-	deviceFeatures.geometryShader = VK_TRUE;
-#endif
 	deviceFeatures.occlusionQueryPrecise = VK_TRUE;
 	deviceFeatures.depthClamp = VK_TRUE;
 	deviceFeatures.depthBiasClamp = VK_TRUE;
@@ -1489,19 +1330,7 @@ std::vector<const char*> VulkanRenderer::CheckInstanceExtensionSupport(FeatureCo
 	// build list of required extensions
 	std::vector<const char*> requiredInstanceExtensions;
 	requiredInstanceExtensions.emplace_back(VK_KHR_SURFACE_EXTENSION_NAME);
-	#if BOOST_OS_WINDOWS
-	requiredInstanceExtensions.emplace_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
-	#elif BOOST_OS_LINUX || BOOST_OS_BSD
-	auto backend = WindowSystem::GetWindowInfo().window_main.backend;
-	if(backend == WindowSystem::WindowHandleInfo::Backend::X11)
-		requiredInstanceExtensions.emplace_back(VK_KHR_XLIB_SURFACE_EXTENSION_NAME);
-	#if HAS_WAYLAND
-	else if (backend == WindowSystem::WindowHandleInfo::Backend::Wayland)
-		requiredInstanceExtensions.emplace_back(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME);
-	#endif
-	#elif BOOST_OS_MACOS
 	requiredInstanceExtensions.emplace_back(VK_EXT_METAL_SURFACE_EXTENSION_NAME);
-	#endif
 	if (cemuLog_isLoggingEnabled(LogType::VulkanValidation))
 		requiredInstanceExtensions.emplace_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
 
@@ -1558,101 +1387,9 @@ bool VulkanRenderer::IsDeviceSuitable(VkSurfaceKHR surface, const VkPhysicalDevi
 	return !swapchainSupport.formats.empty() && !swapchainSupport.presentModes.empty();
 }
 
-#if BOOST_OS_WINDOWS
-VkSurfaceKHR VulkanRenderer::CreateWinSurface(VkInstance instance, HWND hwindow)
-{
-	VkWin32SurfaceCreateInfoKHR sci{};
-	sci.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
-	sci.hwnd = hwindow;
-	sci.hinstance = GetModuleHandle(nullptr);
-
-	VkSurfaceKHR result;
-	VkResult err;
-	if ((err = vkCreateWin32SurfaceKHR(instance, &sci, nullptr, &result)) != VK_SUCCESS)
-	{
-		cemuLog_log(LogType::Force, "Cannot create a Win32 Vulkan surface: {}", (sint32)err);
-		throw std::runtime_error(fmt::format("Cannot create a Win32 Vulkan surface: {}", err));
-	}
-
-	return result;
-}
-#endif
-
-#if BOOST_OS_LINUX || BOOST_OS_BSD
-VkSurfaceKHR VulkanRenderer::CreateXlibSurface(VkInstance instance, Display* dpy, Window window)
-{
-    VkXlibSurfaceCreateInfoKHR sci{};
-    sci.sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
-    sci.flags = 0;
-	sci.dpy = dpy;
-    sci.window = window;
-
-    VkSurfaceKHR result;
-    VkResult err;
-    if ((err = vkCreateXlibSurfaceKHR(instance, &sci, nullptr, &result)) != VK_SUCCESS)
-    {
-		cemuLog_log(LogType::Force, "Cannot create a X11 Vulkan surface: {}", (sint32)err);
-        throw std::runtime_error(fmt::format("Cannot create a X11 Vulkan surface: {}", err));
-    }
-
-    return result;
-}
-
-VkSurfaceKHR VulkanRenderer::CreateXcbSurface(VkInstance instance, xcb_connection_t* connection, xcb_window_t window)
-{
-    VkXcbSurfaceCreateInfoKHR sci{};
-    sci.sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
-    sci.flags = 0;
-    sci.connection = connection;
-    sci.window = window;
-
-    VkSurfaceKHR result;
-    VkResult err;
-    if ((err = vkCreateXcbSurfaceKHR(instance, &sci, nullptr, &result)) != VK_SUCCESS)
-    {
-        cemuLog_log(LogType::Force, "Cannot create a XCB Vulkan surface: {}", (sint32)err);
-        throw std::runtime_error(fmt::format("Cannot create a XCB Vulkan surface: {}", err));
-    }
-
-    return result;
-}
-#ifdef HAS_WAYLAND
-VkSurfaceKHR VulkanRenderer::CreateWaylandSurface(VkInstance instance, wl_display* display, wl_surface* surface)
-{
-    VkWaylandSurfaceCreateInfoKHR sci{};
-    sci.sType = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR;
-    sci.flags = 0;
-	sci.display = display;
-	sci.surface = surface;
-
-    VkSurfaceKHR result;
-    VkResult err;
-    if ((err = vkCreateWaylandSurfaceKHR(instance, &sci, nullptr, &result)) != VK_SUCCESS)
-    {
-        cemuLog_log(LogType::Force, "Cannot create a Wayland Vulkan surface: {}", (sint32)err);
-        throw std::runtime_error(fmt::format("Cannot create a Wayland Vulkan surface: {}", err));
-    }
-
-    return result;
-}
-#endif // HAS_WAYLAND
-#endif // BOOST_OS_LINUX
-
 VkSurfaceKHR VulkanRenderer::CreateFramebufferSurface(VkInstance instance, WindowSystem::WindowHandleInfo& windowInfo)
 {
-#if BOOST_OS_WINDOWS
-	return CreateWinSurface(instance, static_cast<HWND>(windowInfo.surface));
-#elif BOOST_OS_LINUX || BOOST_OS_BSD
-	if(windowInfo.backend == WindowSystem::WindowHandleInfo::Backend::X11)
-		return CreateXlibSurface(instance, static_cast<Display*>(windowInfo.display), reinterpret_cast<Window>(windowInfo.surface));
-	#ifdef HAS_WAYLAND
-	if(windowInfo.backend == WindowSystem::WindowHandleInfo::Backend::Wayland)
-		return CreateWaylandSurface(instance, static_cast<wl_display*>(windowInfo.display), static_cast<wl_surface*>(windowInfo.surface));
-	#endif
-	return {};
-#elif BOOST_OS_MACOS
 	return CreateCocoaSurface(instance, windowInfo.surface);
-#endif
 }
 
 void VulkanRenderer::CreateCommandPool()

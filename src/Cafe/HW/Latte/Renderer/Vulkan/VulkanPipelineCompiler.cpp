@@ -405,11 +405,9 @@ void PipelineCompiler::InitVertexInputState(const LatteContextRegister& latteReg
 		uint32 bufferStride = (latteRegister.GetRawView()[bufferBaseRegisterIndex + 2] >> 11) & 0xFFFF;
 
 		VkVertexInputBindingDescription entry{};
-#if BOOST_OS_MACOS
 		if (bufferStride % 4 != 0) {
 			bufferStride = bufferStride + (4-(bufferStride % 4));
 		}
-#endif
 		entry.stride = bufferStride;
 		if (!fetchType.has_value() || fetchType == LatteConst::VertexFetchType2::VERTEX_DATA)
 			entry.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
@@ -1080,12 +1078,6 @@ static ConcurrentQueue<PipelineCompiler*> s_pipelineCompileRequests;
 static void compilePipeline_thread(sint32 threadIndex)
 {
 	SetThreadName("compilePl");
-#ifdef _WIN32
-	// to avoid starving the main cpu and render threads the pipeline compile threads run at lower priority
-	// except for one thread which we always run at normal priority to prevent the opposite scenario where all compile threads are starved
-	if(threadIndex != 0)
-		SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
-#endif
 	while (!s_compileThreadsShutdownSignal)
 	{
 		PipelineCompiler* request = s_pipelineCompileRequests.pop();

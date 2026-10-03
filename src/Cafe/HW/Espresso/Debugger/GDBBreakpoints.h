@@ -2,17 +2,6 @@
 #include "GDBStub.h"
 #include <utility>
 
-#if defined(ARCH_X86_64) && BOOST_OS_LINUX
-#include <sys/types.h>
-
-// helpers for accessing debug register
-typedef unsigned long DRType;
-
-DRType _GetDR(pid_t tid, int drIndex);
-void _SetDR(pid_t tid, int drIndex, DRType newValue);
-DRType _ReadDR6();
-#endif
-
 enum class BreakpointType
 {
 	BP_SINGLE,

@@ -207,10 +207,6 @@ void InputPanel::bind_hotkey_events(wxTextCtrl* text_ctrl)
 	text_ctrl->Bind(wxEVT_SET_FOCUS, &InputPanel::on_edit_key_focus, this);
 	text_ctrl->Bind(wxEVT_KILL_FOCUS, &InputPanel::on_edit_key_kill_focus, this);
 	text_ctrl->Bind(wxEVT_RIGHT_DOWN, &InputPanel::on_right_click, this);
-#if BOOST_OS_LINUX
-	// Bind to a no-op lambda to disable arrow keys navigation
-	text_ctrl->Bind(wxEVT_KEY_DOWN, [](wxKeyEvent &) {});
-#endif
 }
 
 void InputPanel::on_left_click(wxMouseEvent& event)
@@ -236,9 +232,6 @@ void InputPanel::on_edit_key_focus(wxFocusEvent& event)
 	m_color_backup[text->GetId()] = text->GetBackgroundColour();
 
 	text->SetBackgroundColour(kKeyColourEditMode);
-	#if BOOST_OS_WINDOWS
-	text->HideNativeCaret();
-	#endif
 	text->Refresh();
 
 	m_focused_element = text->GetId();
@@ -275,9 +268,6 @@ bool InputPanel::reset_focused_element()
 	else
 		prev_element->SetBackgroundColour(kKeyColourNormalMode);
 
-#if BOOST_OS_WINDOWS
-	prev_element->HideNativeCaret();
-#endif
 	prev_element->Refresh();
 	
 	m_focused_element = wxID_NONE;

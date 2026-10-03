@@ -22,9 +22,7 @@
 #include "helpers/wxHelpers.h"
 #include "PadViewFrame.h"
 
-#if BOOST_OS_LINUX || BOOST_OS_MACOS || BOOST_OS_BSD
 #include "resource/embedded/resources.h"
-#endif
 
 // settings
 #include "config/CemuConfig.h"
@@ -38,17 +36,8 @@
 #include "util/ScreenSaver/ScreenSaver.h"
 #include "util/helpers/SystemException.h"
 #include "Cafe/HW/Latte/Renderer/Vulkan/VsyncDriver.h"
-#if BOOST_OS_LINUX && defined(ENABLE_FERAL_GAMEMODE)
-#include <gamemode_client.h>
-#endif
-#if ( BOOST_OS_LINUX || BOOST_OS_BSD ) && HAS_WAYLAND
-#include "helpers/wxWayland.h"
-#endif
 
 // Renderer Canvasses
-#ifdef ENABLE_OPENGL
-#include "canvas/OpenGLCanvas.h"
-#endif
 #ifdef ENABLE_VULKAN
 #include "canvas/VulkanCanvas.h"
 #endif
@@ -311,14 +300,7 @@ MainWindow::MainWindow()
 	SetClientSize(1280, 720);
 	SetIcon(wxICON(M_WND_ICON128));
 
-#if BOOST_OS_MACOS
 	this->EnableFullScreenView(true);
-#endif
-
-#if BOOST_OS_WINDOWS
-	HICON hWindowIcon = (HICON)LoadImageA(NULL, "M_WND_ICON16", IMAGE_ICON, 16, 16, LR_LOADFROMFILE);
-	SendMessage(this->GetHWND(), WM_SETICON, ICON_SMALL, (LPARAM)hWindowIcon);
-#endif
 
 	auto* main_sizer = new wxBoxSizer(wxVERTICAL);
     auto load_file = LaunchSettings::GetLoadFile();
@@ -599,23 +581,6 @@ bool MainWindow::FileLoad(const fs::path launchPath, wxLaunchGameEvent::INITIATE
 	if (FullscreenEnabled())
 		SetFullScreen(true);
 
-    //GameMode support
-#if BOOST_OS_LINUX && defined(ENABLE_FERAL_GAMEMODE)
-    if(GetWxGUIConfig().feral_gamemode)
-    {
-        // attempt to start gamemode
-        if(gamemode_request_start() < 0)
-        {
-            // GameMode failed to start
-            cemuLog_log(LogType::Force, "Could not start GameMode");
-        }
-        else
-        {
-            cemuLog_log(LogType::Force, "GameMode has been started.");
-        }
-    }
-#endif
-
 	CreateCanvas();
 	CafeSystem::LaunchForegroundTitle();
 	RecreateMenu();
@@ -708,11 +673,7 @@ void MainWindow::OnInstallUpdate(wxCommandEvent& event)
 			break;
 		if (modalChoice == wxID_OK)
 		{
-			#if BOOST_OS_LINUX || BOOST_OS_MACOS || BOOST_OS_BSD
 			fs::path dirPath((const char*)(openDirDialog.GetPath().fn_str()));
-			#else
-			fs::path dirPath(openDirDialog.GetPath().fn_str());
-			#endif
 
 			if ((dirPath.filename() == "code" || dirPath.filename() == "content" || dirPath.filename() == "meta") && dirPath.has_parent_path())
 			{
@@ -808,11 +769,6 @@ void MainWindow::TogglePadView()
 
 		m_padView->Show(true);
 
-#if ( BOOST_OS_LINUX || BOOST_OS_BSD ) && HAS_WAYLAND
-		if (wxWlIsWaylandWindow(m_padView))
-			wxWlSetAppId(m_padView, "info.cemu.Cemu");
-#endif
-
 		m_padView->Initialize();
 		if (m_game_launched)
 			m_padView->InitializeRenderCanvas();
@@ -823,25 +779,6 @@ void MainWindow::TogglePadView()
 		m_padView = nullptr;
 	}
 }
-
-#if BOOST_OS_WINDOWS
-
-#ifndef DBT_DEVNODES_CHANGED
-#define DBT_DEVNODES_CHANGED (0x0007)
-#endif
-WXLRESULT MainWindow::MSWWindowProc(WXUINT nMsg, WXWPARAM wParam, WXLPARAM lParam)
-{
-	if (nMsg == WM_DEVICECHANGE)
-	{
-		if (wParam == DBT_DEVNODES_CHANGED)
-		{
-			InputManager::instance().on_device_changed();
-		}
-	}
-
-	return wxFrame::MSWWindowProc(nMsg, wParam, lParam);
-}
-#endif
 
 void MainWindow::OpenSettings()
 {
@@ -1234,31 +1171,6 @@ void MainWindow::OnDebugViewTextureRelations(wxCommandEvent& event)
 
 void MainWindow::ShowCursor(bool state)
 {
-	#if BOOST_OS_WINDOWS
-	CURSORINFO info{};
-	info.cbSize = sizeof(CURSORINFO);
-	GetCursorInfo(&info);
-	const bool visible = info.flags == CURSOR_SHOWING;
-
-	if (state == visible)
-		return;
-
-	int counter = 0;
-	if(state)
-	{
-		do
-		{
-			counter = ::ShowCursor(TRUE);
-		} while (counter < 0);
-	}
-	else
-	{
-		do
-		{
-			counter = ::ShowCursor(FALSE);
-		} while (counter >= 0);
-	}
-	#else
 	if (state)
 	{
 		wxSetCursor(wxNullCursor); // restore system default cursor
@@ -1267,19 +1179,12 @@ void MainWindow::ShowCursor(bool state)
 	{
 		wxSetCursor(wxCursor(wxCURSOR_BLANK));
 	}
-	#endif
 }
 
 uintptr_t MainWindow::GetRenderCanvasHWND()
 {
 	// deprecated. We can use the global cross-platform window info structs now
-	#if BOOST_OS_WINDOWS
-	if (!m_render_canvas)
-		return 0;
-	return (uintptr_t)m_render_canvas->GetHWND();
-	#else
 	return 0;
-	#endif
 }
 
 wxRect MainWindow::GetDesktopRect()
@@ -1474,19 +1379,11 @@ void MainWindow::OnKeyUp(wxKeyEvent& event)
 
 void MainWindow::OnKeyDown(wxKeyEvent& event)
 {
-#if defined(__APPLE__)
        // On macOS, allow Cmd+Q to quit the application
     if (event.CmdDown() && event.GetKeyCode() == 'Q')
     {
         Close(true);
     }
-#else
-     // On Windows/Linux, only Alt+F4 is allowed for quitting
-    if (event.AltDown() && event.GetKeyCode() == WXK_F4)
-    {
-        Close(true);
-    }
-#endif
     else
     {
         event.Skip();
@@ -1604,10 +1501,6 @@ void MainWindow::CreateCanvas()
     this->GetSizer()->Add(m_game_panel, 1, wxEXPAND);
 
     // create canvas
-	#ifdef ENABLE_OPENGL
-	if (ActiveSettings::GetGraphicsAPI() == kOpenGL)
-		m_render_canvas = GLCanvas_Create(m_game_panel, wxSize(1280, 720), true);
-	#endif
 	#ifdef ENABLE_VULKAN
 	if (ActiveSettings::GetGraphicsAPI() == kVulkan)
 		m_render_canvas = new VulkanCanvas(m_game_panel, wxSize(1280, 720), true);
@@ -1804,9 +1697,6 @@ void MainWindow::SetMenuVisible(bool state)
 	if (m_menu_visible == state)
 		return;
 
-#if !BOOST_OS_MACOS // on macOS hiding the menu seems to cause issues (see #609)
-	SetMenuBar(state ? m_menuBar : nullptr);
-#endif
 	m_menu_visible = state;
 }
 
@@ -2011,7 +1901,6 @@ public:
 			lineSizer->Add(new wxStaticText(parent, wxID_ANY, ")"));
 			sizer->Add(lineSizer);
 		}
-#if BOOST_OS_MACOS
 		// MoltenVK
 		{
 			wxSizer* lineSizer = new wxBoxSizer(wxHORIZONTAL);
@@ -2020,7 +1909,6 @@ public:
 			lineSizer->Add(new wxStaticText(parent, -1, ")"));
 			sizer->Add(lineSizer);
 		}
-#endif
 		// icons
 		{
 			wxSizer* lineSizer = new wxBoxSizer(wxHORIZONTAL);
@@ -2258,9 +2146,7 @@ void MainWindow::RecreateMenu()
 	m_padViewMenuItem = optionsMenu->AppendCheckItem(MAINFRAME_MENU_ID_OPTIONS_SECOND_WINDOW_PADVIEW, _("&Separate GamePad view"));
 	m_padViewMenuItem->Check(wxConfig.pad_open);
 	optionsMenu->AppendSeparator();
-	#if BOOST_OS_MACOS
 	optionsMenu->Append(MAINFRAME_MENU_ID_OPTIONS_MAC_SETTINGS, _("&Settings..." "\tCtrl-,"));
-	#endif
 	optionsMenu->Append(MAINFRAME_MENU_ID_OPTIONS_GENERAL2, _("&General settings"));
 	optionsMenu->Append(MAINFRAME_MENU_ID_OPTIONS_INPUT, _("&Input settings"));
 	optionsMenu->Append(MAINFRAME_MENU_ID_OPTIONS_HOTKEY, _("&Hotkey settings"));
@@ -2391,13 +2277,6 @@ void MainWindow::RecreateMenu()
 	// help menu
 	wxMenu* helpMenu = new wxMenu();
 	m_check_update_menu = helpMenu->Append(MAINFRAME_MENU_ID_HELP_UPDATE, _("&Check for updates"));
-#if BOOST_OS_LINUX
-	if (!std::getenv("APPIMAGE")) {
-		m_check_update_menu->Enable(false);
-	}
-#elif BOOST_OS_BSD // BSD users must update from source so disable update checks
-	m_check_update_menu->Enable(false);
-#endif
 	helpMenu->AppendSeparator();
 	helpMenu->Append(MAINFRAME_MENU_ID_HELP_ABOUT, _("&About Cemu"));
 

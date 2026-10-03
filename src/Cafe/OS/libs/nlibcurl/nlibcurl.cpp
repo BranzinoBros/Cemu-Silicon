@@ -670,7 +670,6 @@ void export_curl_multi_fdset(PPCInterpreter_t* hCPU)
 		}
 	};
 
-#if BOOST_OS_UNIX
 	for (int s = 0; s < h_maxFd + 1; s++) 
 	{
 		if(FD_ISSET(s, &h_readFd))
@@ -682,23 +681,6 @@ void export_curl_multi_fdset(PPCInterpreter_t* hCPU)
 		if(FD_ISSET(s, &h_exceptionFd))
 			hostFdSet(s, exceptionFd.GetPtr());
 	}
-#else
-	// fd read set
-	for (uint32 i = 0; i < h_readFd.fd_count; i++)
-	{
-		hostFdSet(h_readFd.fd_array[i], readFd.GetPtr());
-	}
-	// fd write set
-	for (uint32 i = 0; i < h_writeFd.fd_count; i++)
-	{
-		hostFdSet(h_writeFd.fd_array[i], writeFd.GetPtr());
-	}
-	// fd exception set
-	for (uint32 i = 0; i < h_exceptionFd.fd_count; i++)
-	{
-		cemu_assert_debug(false);
-	}
-#endif
 
 	*maxFd = c_maxFD;
 	osLib_returnFromFunction(hCPU, result);

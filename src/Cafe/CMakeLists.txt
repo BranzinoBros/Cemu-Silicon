@@ -83,15 +83,6 @@ add_library(CemuCafe
   HW/Espresso/Recompiler/PPCRecompilerImlGenFPU.cpp
   HW/Espresso/Recompiler/PPCRecompilerIml.h
   HW/Espresso/Recompiler/PPCRecompilerIntermediate.cpp
-  HW/Espresso/Recompiler/BackendX64/BackendX64AVX.cpp
-  HW/Espresso/Recompiler/BackendX64/BackendX64BMI.cpp
-  HW/Espresso/Recompiler/BackendX64/BackendX64.cpp
-  HW/Espresso/Recompiler/BackendX64/BackendX64FPU.cpp
-  HW/Espresso/Recompiler/BackendX64/BackendX64Gen.cpp
-  HW/Espresso/Recompiler/BackendX64/BackendX64GenFPU.cpp
-  HW/Espresso/Recompiler/BackendX64/BackendX64.h
-  HW/Espresso/Recompiler/BackendX64/X64Emit.hpp
-  HW/Espresso/Recompiler/BackendX64/x86Emitter.h
   HW/Latte/Common/RegisterSerializer.cpp
   HW/Latte/Common/RegisterSerializer.h
   HW/Latte/Common/ShaderSerializer.cpp
@@ -106,7 +97,6 @@ add_library(CemuCafe
   HW/Latte/Core/LatteCachedFBO.h
   HW/Latte/Core/LatteCommandProcessor.cpp
   HW/Latte/Core/LatteConst.h
-  HW/Latte/Core/LatteDraw.h
   HW/Latte/Core/LatteGSCopyShaderParser.cpp
   HW/Latte/Core/Latte.h
   HW/Latte/Core/LatteIndices.cpp
@@ -491,28 +481,6 @@ add_library(CemuCafe
   TitleList/TitleList.h
 )
 
-if (ENABLE_OPENGL)
-  target_sources(CemuCafe PRIVATE
-    HW/Latte/Renderer/OpenGL/CachedFBOGL.h
-    HW/Latte/Renderer/OpenGL/LatteShaderGL.cpp
-    HW/Latte/Renderer/OpenGL/LatteTextureGL.cpp
-    HW/Latte/Renderer/OpenGL/LatteTextureGL.h
-    HW/Latte/Renderer/OpenGL/LatteTextureViewGL.cpp
-    HW/Latte/Renderer/OpenGL/LatteTextureViewGL.h
-    HW/Latte/Renderer/OpenGL/OpenGLQuery.cpp
-    HW/Latte/Renderer/OpenGL/OpenGLRendererCore.cpp
-    HW/Latte/Renderer/OpenGL/OpenGLRenderer.cpp
-    HW/Latte/Renderer/OpenGL/OpenGLRenderer.h
-    HW/Latte/Renderer/OpenGL/OpenGLRendererStreamout.cpp
-    HW/Latte/Renderer/OpenGL/OpenGLRendererUniformData.cpp
-    HW/Latte/Renderer/OpenGL/OpenGLSurfaceCopy.cpp
-    HW/Latte/Renderer/OpenGL/OpenGLTextureReadback.h
-    HW/Latte/Renderer/OpenGL/RendererShaderGL.cpp
-    HW/Latte/Renderer/OpenGL/RendererShaderGL.h
-    HW/Latte/Renderer/OpenGL/TextureReadbackGL.cpp
-  )
-endif()
-
 if (ENABLE_VULKAN)
   target_sources(CemuCafe PRIVATE
     HW/Latte/Renderer/Vulkan/CachedFBOVk.cpp
@@ -548,16 +516,14 @@ if (ENABLE_VULKAN)
   )
 endif()
 
-if(APPLE)
+target_sources(CemuCafe PRIVATE
+    HW/Latte/Renderer/MetalView.mm
+    HW/Latte/Renderer/MetalView.h
+)
+if (ENABLE_VULKAN)
 	target_sources(CemuCafe PRIVATE
-	    HW/Latte/Renderer/MetalView.mm
-	    HW/Latte/Renderer/MetalView.h
+	    HW/Latte/Renderer/Vulkan/CocoaSurface.mm
 	)
-	if (ENABLE_VULKAN)
-		target_sources(CemuCafe PRIVATE
-		    HW/Latte/Renderer/Vulkan/CocoaSurface.mm
-		)
-	endif()
 endif()
 
 if(ENABLE_METAL)
@@ -618,15 +584,11 @@ if(ENABLE_METAL)
     )
 endif()
 
-if(CEMU_ARCHITECTURE MATCHES "(aarch64)|(AARCH64)|(arm64)|(ARM64)")
-  target_sources(CemuCafe PRIVATE
-    HW/Espresso/Recompiler/BackendAArch64/BackendAArch64.cpp
-    HW/Espresso/Recompiler/BackendAArch64/BackendAArch64.h
-  )
-  target_link_libraries(CemuCafe PRIVATE xbyak_aarch64)
-endif()
-
-set_property(TARGET CemuCafe PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+target_sources(CemuCafe PRIVATE
+  HW/Espresso/Recompiler/BackendAArch64/BackendAArch64.cpp
+  HW/Espresso/Recompiler/BackendAArch64/BackendAArch64.h
+)
+target_link_libraries(CemuCafe PRIVATE xbyak_aarch64)
 
 cemu_use_precompiled_header(CemuCafe)
 
@@ -660,16 +622,8 @@ target_link_libraries(CemuCafe PRIVATE
   OpenSSL::SSL
 )
 
-if (ENABLE_WAYLAND)
-	# PUBLIC because wayland-client.h is included in VulkanAPI.h
-  target_link_libraries(CemuCafe PUBLIC Wayland::Client)
-endif()
-
 if (ENABLE_LIBUSB)
   if (ENABLE_VCPKG)
-    if(WIN32)
-      set(PKG_CONFIG_EXECUTABLE "${VCPKG_INSTALLED_DIR}/x64-windows/tools/pkgconf/pkgconf.exe")
-    endif()
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(libusb REQUIRED IMPORTED_TARGET libusb-1.0)
     target_link_libraries(CemuCafe PRIVATE PkgConfig::libusb)
@@ -677,8 +631,4 @@ if (ENABLE_LIBUSB)
     find_package(libusb MODULE REQUIRED)
     target_link_libraries(CemuCafe PRIVATE libusb::libusb)
   endif ()
-endif()
-
-if(WIN32)
-	target_link_libraries(CemuCafe PRIVATE iphlpapi)
 endif()

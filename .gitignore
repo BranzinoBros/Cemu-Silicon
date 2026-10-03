@@ -4,15 +4,10 @@
 *.obj
 *.gch
 *.pch
-*.so
 *.dylib
-*.dll
 *.a
-*.lib
-*.exe
 *.out
 *.app
-.vs
 .vscode
 .idea/
 
@@ -21,15 +16,11 @@ cmake-build-*/
 out/
 .cache/
 bin/Cemu_*
-bin/Cemu_*.exe
 
 # Cemu bin files
 bin/otp.bin
 bin/seeprom.bin
 bin/log.txt
-bin/Cemu_*.pdb
-bin/Cemu_*.ilk
-bin/Cemu.exe.backup
 bin/mlc01/*
 bin/settings.xml
 bin/network_services.xml

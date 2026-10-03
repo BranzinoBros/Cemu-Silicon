@@ -9,9 +9,6 @@
 #include "WindowSystem.h"
 
 #include "Cafe/HW/Latte/Renderer/Renderer.h"
-#ifdef ENABLE_OPENGL
-#include "Cafe/HW/Latte/Renderer/OpenGL/RendererShaderGL.h"
-#endif
 #ifdef ENABLE_VULKAN
 #include "Cafe/HW/Latte/Renderer/Vulkan/RendererShaderVk.h"
 #include "Cafe/HW/Latte/Renderer/Vulkan/VulkanPipelineStableCache.h"
@@ -35,10 +32,6 @@
 #include <audio/IAudioAPI.h>
 #include <util/bootSound/BootSoundReader.h>
 #include <thread>
-
-#if BOOST_OS_WINDOWS
-#include <psapi.h>
-#endif
 
 #define SHADER_CACHE_COMPILE_QUEUE_SIZE		(32)
 
@@ -284,11 +277,6 @@ void LatteShaderCache_finish()
 		RendererShaderVk::ShaderCacheLoading_end();
 		return;
 #endif
-#ifdef ENABLE_OPENGL
-	case RendererAPI::OpenGL:
-		RendererShaderGL::ShaderCacheLoading_end();
-		return;
-#endif
 #ifdef ENABLE_METAL
 	case RendererAPI::Metal:
 		RendererShaderMtl::ShaderCacheLoading_end();
@@ -361,11 +349,6 @@ void LatteShaderCache_Load()
 
 	const auto timeLoadStart = now_cached();
 	// remember current amount of committed memory
-#if BOOST_OS_WINDOWS
-	PROCESS_MEMORY_COUNTERS pmc1;
-	GetProcessMemoryInfo(GetCurrentProcess(), &pmc1, sizeof(PROCESS_MEMORY_COUNTERS));
-	LONGLONG totalMem1 = pmc1.PagefileUsage;
-#endif
 	// init shader parallel compile queue
 	LatteShaderCache_initCompileQueue();
 	// create directories
@@ -378,11 +361,6 @@ void LatteShaderCache_Load()
 #ifdef ENABLE_VULKAN
 	case RendererAPI::Vulkan:
 		RendererShaderVk::ShaderCacheLoading_begin(cacheTitleId);
-		break;
-#endif
-#ifdef ENABLE_OPENGL
-	case RendererAPI::OpenGL:
-		RendererShaderGL::ShaderCacheLoading_begin(cacheTitleId);
 		break;
 #endif
 #ifdef ENABLE_METAL
@@ -489,15 +467,6 @@ void LatteShaderCache_Load()
 
 	LatteShaderCache_updateCompileQueue(0);
 	// write load time and RAM usage to log file (in dev build)
-#if BOOST_OS_WINDOWS
-	const auto timeLoadEnd = now_cached();
-	const auto timeLoad = std::chrono::duration_cast<std::chrono::milliseconds>(timeLoadEnd - timeLoadStart).count();
-	PROCESS_MEMORY_COUNTERS pmc2;
-	GetProcessMemoryInfo(GetCurrentProcess(), &pmc2, sizeof(PROCESS_MEMORY_COUNTERS));
-	LONGLONG totalMem2 = pmc2.PagefileUsage;
-	LONGLONG memCommited = totalMem2 - totalMem1;
-	cemuLog_log(LogType::Force, "Shader cache loaded with {} shaders. Commited mem {}MB. Took {}ms", numLoadedShaders, (sint32)(memCommited/1024/1024), timeLoad);
-#endif
 	LatteShaderCache_finish();
 	// if Vulkan or Metal then also load pipeline cache
 #if defined(ENABLE_VULKAN) || defined(ENABLE_METAL)
@@ -975,11 +944,6 @@ void LatteShaderCache_Close()
 #ifdef ENABLE_VULKAN
 	case RendererAPI::Vulkan:
 		RendererShaderVk::ShaderCacheLoading_Close();
-		break;
-#endif
-#ifdef ENABLE_OPENGL
-	case RendererAPI::OpenGL:
-		RendererShaderGL::ShaderCacheLoading_Close();
 		break;
 #endif
 #ifdef ENABLE_METAL

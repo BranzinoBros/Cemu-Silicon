@@ -15,7 +15,6 @@
 #include "Cafe/TitleList/SaveList.h"
 
 #include "Common/ExceptionHandler/ExceptionHandler.h"
-#include "Common/cpu_features.h"
 
 #include "util/helpers/helpers.h"
 #include "config/ActiveSettings.h"
@@ -25,9 +24,6 @@
 
 #include "audio/IAudioAPI.h"
 #include "audio/IAudioInputAPI.h"
-#if BOOST_OS_WINDOWS
-#pragma comment(lib,"Dbghelp.lib")
-#endif
 
 #ifdef HAS_SDL
 #define SDL_MAIN_HANDLED
@@ -35,22 +31,9 @@
 #include <SDL3/SDL_main.h>
 #endif
 
-#if BOOST_OS_LINUX
-#define _putenv(__s) putenv((char*)(__s))
-#include <sys/sysinfo.h>
-#elif BOOST_OS_MACOS || BOOST_OS_BSD
 #define _putenv(__s) putenv((char*)(__s))
 #include <sys/types.h>
 #include <sys/sysctl.h>
-#endif
-
-#if BOOST_OS_WINDOWS
-extern "C"
-{
-	__declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
-	__declspec(dllexport) DWORD NvOptimusEnablement = 0x00000001;
-}
-#endif
 
 std::atomic_bool g_isGPUInitFinished = false;
 
@@ -67,28 +50,6 @@ void _putenvSafe(const char* c)
     _putenv(s->c_str());
 }
 
-void reconfigureGLDrivers()
-{
-#ifdef ENABLE_OPENGL
-	// reconfigure GL drivers to store
-	const fs::path nvCacheDir = ActiveSettings::GetCachePath("shaderCache/driver/nvidia/");
-
-	std::error_code err;
-	fs::create_directories(nvCacheDir, err);
-
-	std::string nvCacheDirEnvOption("__GL_SHADER_DISK_CACHE_PATH=");
-	nvCacheDirEnvOption.append(_pathToUtf8(nvCacheDir));
-
-#if BOOST_OS_WINDOWS
-	std::wstring tmpW = boost::nowide::widen(nvCacheDirEnvOption);
-	_wputenv(tmpW.c_str());
-#else
-    _putenvSafe(nvCacheDirEnvOption.c_str());
-#endif
-    _putenvSafe("__GL_SHADER_DISK_CACHE_SKIP_CLEANUP=1");
-#endif
-}
-
 void reconfigureVkDrivers()
 {
 #ifdef ENABLE_VULKAN
@@ -97,24 +58,8 @@ void reconfigureVkDrivers()
 #endif
 }
 
-void WindowsInitCwd()
-{
-	#if BOOST_OS_WINDOWS
-	executablePath.resize(4096);
-	int i = GetModuleFileNameW(NULL, executablePath.data(), executablePath.size());
-	if(i >= 0)
-		executablePath.resize(i);
-	else
-		executablePath.clear();
-	SetCurrentDirectoryW(fs::path(executablePath).parent_path().c_str());
-	// set high priority
-	SetPriorityClass(GetCurrentProcess(), ABOVE_NORMAL_PRIORITY_CLASS);
-	#endif
-}
-
 void CemuCommonInit()
 {
-	reconfigureGLDrivers();
 	reconfigureVkDrivers();
 	// crypto init
 	AES128_init();
@@ -122,7 +67,6 @@ void CemuCommonInit()
 	// call this as early as possible because it measures frequency of RDTSC using an asynchronous thread over 3 seconds
 	PPCTimer_init();
 
-	WindowsInitCwd();
     ExceptionHandler_Init();
 	// read config
 	GetConfigHandle().Load();
@@ -169,33 +113,6 @@ void UnitTests()
 	CRCTest();
 }
 
-bool isConsoleConnected = false;
-void requireConsole()
-{
-    #if BOOST_OS_WINDOWS
-    if (isConsoleConnected)
-        return;
-
-    HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
-    DWORD dwFileType = GetFileType(hOut);
-
-    if (dwFileType == FILE_TYPE_UNKNOWN || dwFileType == FILE_TYPE_CHAR)
-    {
-        if (AttachConsole(ATTACH_PARENT_PROCESS) != FALSE)
-        {
-            freopen("CONOUT$", "w", stdout);
-            freopen("CONOUT$", "w", stderr);
-            freopen("CONIN$", "r", stdin);
-            isConsoleConnected = true;
-        }
-    }
-    else
-    {
-        isConsoleConnected = true; 
-    }
-    #endif
-}
-
 void HandlePostUpdate()
 {
 	auto exeBackupPath = ActiveSettings::GetExecutablePath();
@@ -215,58 +132,14 @@ void HandlePostUpdate()
 
 void ToolShaderCacheMerger();
 
-#if BOOST_OS_WINDOWS
-
-// entrypoint for release builds
-int wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int nShowCmd)
-{
-	if (FAILED(CoInitializeEx(nullptr, COINIT_MULTITHREADED | COINIT_DISABLE_OLE1DDE)))
-		cemuLog_log(LogType::Force, "CoInitializeEx() failed");
-#ifdef HAS_SDL
-	SDL_SetMainReady();
-#endif
-	auto parse_rc = LaunchSettings::HandleCommandline(lpCmdLine);
-	if (parse_rc.has_value())
-		return *parse_rc;
-	WindowSystem::Create();
-	return 0;
-}
-
-// entrypoint for debug builds with console
-int main(int argc, char* argv[])
-{
-	if (FAILED(CoInitializeEx(nullptr, COINIT_MULTITHREADED | COINIT_DISABLE_OLE1DDE)))
-		cemuLog_log(LogType::Force, "CoInitializeEx() failed");
-#ifdef HAS_SDL
-	SDL_SetMainReady();
-#endif
-	auto parse_rc = LaunchSettings::HandleCommandline(argc, argv);
-	if (parse_rc.has_value())
-		return *parse_rc;
-	WindowSystem::Create();
-	return 0;
-}
-
-#else
-
-int BreathOfTheWildChildProcessMain();
 int main(int argc, char *argv[])
 {
-#if BOOST_OS_LINUX && defined(ENABLE_VULKAN)
-	if (getenv("CEMU_DETECT_RADV") != nullptr)
-		return BreathOfTheWildChildProcessMain();
-#endif
-
-#if BOOST_OS_LINUX || BOOST_OS_BSD
-    XInitThreads();
-#endif
 	auto parse_rc = LaunchSettings::HandleCommandline(argc, argv);
   if (parse_rc.has_value())
 		return *parse_rc;
 	WindowSystem::Create();
 	return 0;
 }
-#endif
 
 extern "C" DLLEXPORT uint64 gameMeta_getTitleId()
 {

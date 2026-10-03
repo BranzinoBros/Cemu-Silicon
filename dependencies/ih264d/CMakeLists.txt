@@ -117,36 +117,6 @@ add_library (ih264d
 "decoder/ivd.h"
 )
 
-if (CMAKE_OSX_ARCHITECTURES)
-set(IH264D_ARCHITECTURE ${CMAKE_OSX_ARCHITECTURES})
-else()
-set(IH264D_ARCHITECTURE ${CMAKE_SYSTEM_PROCESSOR})
-endif()
-
-if (IH264D_ARCHITECTURE STREQUAL "x86_64" OR IH264D_ARCHITECTURE STREQUAL "amd64" OR IH264D_ARCHITECTURE STREQUAL "AMD64")
-set(LIBAVCDEC_X86_INCLUDES "common/x86" "decoder/x86")
-include_directories("common/" "decoder/" ${LIBAVCDEC_X86_INCLUDES})
-target_sources(ih264d PRIVATE
-"common/x86/ih264_chroma_intra_pred_filters_ssse3.c"
-"common/x86/ih264_deblk_chroma_ssse3.c"
-"common/x86/ih264_deblk_luma_ssse3.c"
-"common/x86/ih264_ihadamard_scaling_sse42.c"
-"common/x86/ih264_ihadamard_scaling_ssse3.c"
-"common/x86/ih264_inter_pred_filters_ssse3.c"
-"common/x86/ih264_iquant_itrans_recon_dc_ssse3.c"
-"common/x86/ih264_iquant_itrans_recon_sse42.c"
-"common/x86/ih264_iquant_itrans_recon_ssse3.c"
-"common/x86/ih264_luma_intra_pred_filters_ssse3.c"
-"common/x86/ih264_mem_fns_ssse3.c"
-"common/x86/ih264_padding_ssse3.c"
-"common/x86/ih264_platform_macros.h"
-"common/x86/ih264_resi_trans_quant_sse42.c"
-"common/x86/ih264_weighted_pred_sse42.c"
-"decoder/x86/ih264d_function_selector.c"
-"decoder/x86/ih264d_function_selector_sse42.c"
-"decoder/x86/ih264d_function_selector_ssse3.c"
-)
-elseif(IH264D_ARCHITECTURE STREQUAL "aarch64" OR IH264D_ARCHITECTURE STREQUAL "arm64")
 enable_language( C CXX ASM )
 set(LIBAVCDEC_ARM_INCLUDES "common/armv8" "decoder/arm")
 include_directories("common/" "decoder/" ${LIBAVCDEC_ARM_INCLUDES})
@@ -183,22 +153,5 @@ target_sources(ih264d PRIVATE
 "decoder/arm/ih264d_function_selector.c"
 )
 target_compile_options(ih264d PRIVATE -DARMV8 $<$<COMPILE_LANGUAGE:ASM,Clang>:-Wno-unused-command-line-argument>)
-if(NOT MSVC)
-    set(CMAKE_ASM_FLAGS "${CFLAGS} -x assembler-with-cpp")
-endif()
-if(APPLE)
-    target_sources(ih264d PRIVATE "common/armv8/macos_arm_symbol_aliases.s")
-endif()
-else()
-message(FATAL_ERROR "ih264d unknown architecture: ${IH264D_ARCHITECTURE}")
-endif()
-
-if(MSVC)
-set_property(TARGET ih264d PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-
-# tune settings for slightly better performance
-target_compile_options(ih264d PRIVATE $<$<CONFIG:Release,RelWithDebInfo>:/Oi>) # enable intrinsic functions
-target_compile_options(ih264d PRIVATE $<$<CONFIG:Release,RelWithDebInfo>:/Ot>) # favor speed
-target_compile_options(ih264d PRIVATE "/GS-") # disable runtime checks
-
-endif()
+set(CMAKE_ASM_FLAGS "${CFLAGS} -x assembler-with-cpp")
+target_sources(ih264d PRIVATE "common/armv8/macos_arm_symbol_aliases.s")

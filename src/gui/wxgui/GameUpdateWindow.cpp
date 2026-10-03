@@ -140,9 +140,6 @@ GameUpdateWindow::GameUpdateWindow(wxWindow& parent, const fs::path& filePath)
 {
 	try
 	{
-		#if BOOST_OS_WINDOWS
-		SetLastError(0);
-		#endif
 		if(!ParseUpdate(filePath))
 			throw AbortException();
 	}

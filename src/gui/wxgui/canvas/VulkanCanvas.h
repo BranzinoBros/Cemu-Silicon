@@ -9,9 +9,6 @@
 
 class VulkanCanvas : public IRenderCanvas, public wxWindow
 {
-#if ( BOOST_OS_LINUX || BOOST_OS_BSD ) && HAS_WAYLAND
-	std::unique_ptr<class wxWlSubsurface> m_subsurface;
-#endif
 public:
 	VulkanCanvas(wxWindow* parent, const wxSize& size, bool is_main_window);
 	~VulkanCanvas();
