@@ -42,6 +42,7 @@ if (ENABLE_VCPKG)
 		set(VCPKG_OVERLAY_PORTS "${CMAKE_CURRENT_LIST_DIR}/dependencies/vcpkg_overlay_ports_linux;${CMAKE_CURRENT_LIST_DIR}/dependencies/vcpkg_overlay_ports")
 	elseif(APPLE)
 		set(VCPKG_OVERLAY_PORTS "${CMAKE_CURRENT_LIST_DIR}/dependencies/vcpkg_overlay_ports_mac;${CMAKE_CURRENT_LIST_DIR}/dependencies/vcpkg_overlay_ports")
+		set(VCPKG_OVERLAY_TRIPLETS "${CMAKE_CURRENT_LIST_DIR}/dependencies/vcpkg_overlay_triplets")
 	else()
 		set(VCPKG_OVERLAY_PORTS "${CMAKE_CURRENT_LIST_DIR}/dependencies/vcpkg_overlay_ports_win;${CMAKE_CURRENT_LIST_DIR}/dependencies/vcpkg_overlay_ports")
 	endif()
@@ -53,6 +54,14 @@ if (ENABLE_VCPKG)
 	if (WIN32)
 		set(VCPKG_TARGET_TRIPLET "x64-windows-static" CACHE STRING "")
 	endif()
+endif()
+
+if (APPLE)
+	# Apple Silicon only. macOS 26 is the first release with Metal 4.
+	# Keep in sync with dependencies/vcpkg_overlay_triplets/arm64-osx.cmake
+	# and MACOSX_MINIMUM_SYSTEM_VERSION in src/CMakeLists.txt.
+	set(CMAKE_OSX_DEPLOYMENT_TARGET "26.0" CACHE STRING "Minimum macOS version")
+	set(CMAKE_OSX_ARCHITECTURES "arm64" CACHE STRING "")
 endif()
 
 project(Cemu VERSION 2.0.0)
@@ -99,7 +108,6 @@ endif()
 
 if (APPLE)
     enable_language(OBJC OBJCXX)
-    set(CMAKE_OSX_DEPLOYMENT_TARGET "13.4")
 endif()
 
 if (UNIX AND NOT APPLE)
