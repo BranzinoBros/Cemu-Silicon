@@ -173,14 +173,7 @@ endif()
 
 add_subdirectory("dependencies/ih264d" EXCLUDE_FROM_ALL)
 
-if (CMAKE_OSX_ARCHITECTURES)
-	set(CEMU_ARCHITECTURE ${CMAKE_OSX_ARCHITECTURES})
-else()
-	set(CEMU_ARCHITECTURE ${CMAKE_SYSTEM_PROCESSOR})
-endif()
-if(CEMU_ARCHITECTURE MATCHES "(aarch64)|(AARCH64)|(arm64)|(ARM64)")
-	add_subdirectory("dependencies/xbyak_aarch64" EXCLUDE_FROM_ALL)
-endif()
+add_subdirectory("dependencies/xbyak_aarch64" EXCLUDE_FROM_ALL)
 
 find_package(ZArchive QUIET)
 if (NOT ZArchive_FOUND)

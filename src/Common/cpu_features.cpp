@@ -3,30 +3,6 @@
 #include <sys/types.h>
 #include <sys/sysctl.h>
 
-// wrappers with uniform prototype for implementation-specific x86 CPU id
-#if defined(ARCH_X86_64)
-#ifdef __GNUC__
-#include <cpuid.h>
-#endif
-
-inline void cpuid(int cpuInfo[4], int functionId) {
-#if defined(__GNUC__)
-	__cpuid(functionId, cpuInfo[0], cpuInfo[1], cpuInfo[2], cpuInfo[3]);
-#else
-#error No definition for cpuid
-#endif
-}
-
-inline void cpuidex(int cpuInfo[4], int functionId, int subFunctionId) {
-#if defined(__GNUC__)
-	__cpuid_count(functionId, subFunctionId, cpuInfo[0], cpuInfo[1], cpuInfo[2], cpuInfo[3]);
-#else
-#error No definition for cpuidex
-#endif
-}
-#endif
-
-
 CPUFeaturesImpl::CPUFeaturesImpl()
 {
 	std::string cpuName;
@@ -49,36 +25,6 @@ CPUFeaturesImpl::CPUFeaturesImpl()
 std::string CPUFeaturesImpl::GetCPUName()
 {
 	return { m_cpuBrandName };
-}
-
-std::string CPUFeaturesImpl::GetCommaSeparatedExtensionList()
-{
-	std::string tmp;
-	auto appendExt = [&tmp](const char* str)
-	{
-		if (!tmp.empty())
-			tmp.append(", ");
-		tmp.append(str);
-	};
-	if (x86.ssse3)
-		appendExt("SSSE3");
-	if (x86.sse4_1)
-		appendExt("SSE4.1");
-	if (x86.avx)
-		appendExt("AVX");
-	if (x86.avx2)
-		appendExt("AVX2");
-	if (x86.lzcnt)
-		appendExt("LZCNT");
-	if (x86.movbe)
-		appendExt("MOVBE");
-	if (x86.bmi2)
-		appendExt("BMI2");
-	if (x86.aesni)
-		appendExt("AES-NI");
-	if(x86.invariant_tsc)
-		appendExt("INVARIANT-TSC");
-	return tmp;
 }
 
 CPUFeaturesImpl g_CPUFeatures;

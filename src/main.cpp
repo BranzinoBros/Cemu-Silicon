@@ -15,7 +15,6 @@
 #include "Cafe/TitleList/SaveList.h"
 
 #include "Common/ExceptionHandler/ExceptionHandler.h"
-#include "Common/cpu_features.h"
 
 #include "util/helpers/helpers.h"
 #include "config/ActiveSettings.h"

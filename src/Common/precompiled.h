@@ -24,22 +24,12 @@
 // }
 // #endif
 
-// arch defines
-
-#if defined(__x86_64__) || defined(_M_X64) || defined(_M_AMD64)
-#define ARCH_X86_64
-#endif
-
 // c includes
 #include <cstdint>
 #include <cstdlib>
 #include <cmath>
 #include <ctime>
 #include <cassert>
-
-#if defined(ARCH_X86_64)
-#include <immintrin.h>
-#endif
 
 // c++ includes
 #include <string>
@@ -266,7 +256,6 @@ FORCE_INLINE int BSF(uint32 v) // returns index of first bit set, counting from 
 }
 
 // On aarch64 we handle some of the x86 intrinsics by implementing them as wrappers
-#if defined(__aarch64__)
 
 inline void _mm_pause()
 {
@@ -293,8 +282,6 @@ inline unsigned char _addcarry_u64(unsigned char carry, unsigned long long a, un
         return 1;
     return 0;
 }
-
-#endif
 
 // asserts
 

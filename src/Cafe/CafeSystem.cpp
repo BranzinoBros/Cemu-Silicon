@@ -506,7 +506,6 @@ namespace CafeSystem
 		// CPU and RAM info
 		logCPUAndMemoryInfo();
 		logPlatformInfo();
-		cemuLog_log(LogType::Force, "Used CPU extensions: {}", g_CPUFeatures.GetCommaSeparatedExtensionList());
 		// misc systems
 		rplSymbolStorage_init();
 		// allocate memory for all SysAllocators

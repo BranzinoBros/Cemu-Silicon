@@ -2,7 +2,6 @@
 #include "Cafe/HW/Latte/Core/LatteDraw.h"
 #include "Cafe/HW/Latte/Core/LatteTexture.h"
 #include "Cafe/HW/Latte/Renderer/Renderer.h"
-#include "Common/cpu_features.h"
 
 std::unordered_set<LatteTexture*> g_allTextures;
 

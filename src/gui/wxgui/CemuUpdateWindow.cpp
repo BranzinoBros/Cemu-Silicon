@@ -159,13 +159,7 @@ static std::string GetPlatformUpdateIdentifier()
 {
 	std::string identifier;
 	identifier.append("macos_bundle");
-#if defined(__aarch64__)
 	identifier.append("_aarch64");
-#elif defined(ARCH_X86_64)
-	identifier.append("_x86_64");
-#else
-	return "";
-#endif
 	return identifier;
 }
 
