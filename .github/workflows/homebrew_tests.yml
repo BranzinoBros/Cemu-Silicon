@@ -1,0 +1,50 @@
+name: Build PPC homebrew tests
+
+# Builds the Wii U homebrew test programs in tests/ppc (ppc_tests.rpx and
+# ppc_bench.rpx) with devkitPPC + wut. Run them against a Cemu build with
+# scripts/run-ppc-tests.sh.
+
+on:
+  pull_request:
+    paths:
+      - "tests/ppc/**"
+      - ".github/workflows/homebrew_tests.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "tests/ppc/**"
+      - ".github/workflows/homebrew_tests.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-ppc-tests:
+    runs-on: ubuntu-latest
+    container: devkitpro/devkitppc:latest
+    steps:
+      - name: "Checkout repo"
+        uses: actions/checkout@v6
+
+      - name: "Build rpx files"
+        run: tests/ppc/build.sh
+
+      - name: "Compare with prebuilt binaries"
+        run: |
+          for f in ppc_tests.rpx ppc_bench.rpx; do
+            if cmp -s "tests/ppc/build/$f" "tests/ppc/prebuilt/$f"; then
+              echo "$f matches tests/ppc/prebuilt"
+            else
+              echo "::notice::$f differs from tests/ppc/prebuilt/$f (different toolchain version or sources changed without updating the prebuilt copy)"
+            fi
+          done
+
+      - name: "Upload artifact"
+        uses: actions/upload-artifact@v6
+        with:
+          name: ppc-homebrew-tests
+          path: |
+            tests/ppc/build/ppc_tests.rpx
+            tests/ppc/build/ppc_bench.rpx
