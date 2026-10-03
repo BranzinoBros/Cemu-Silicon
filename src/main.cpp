@@ -119,7 +119,8 @@ void CemuCommonInit()
 	// crypto init
 	AES128_init();
 	// init PPC timer
-	// call this as early as possible because it measures frequency of RDTSC using an asynchronous thread over 3 seconds
+	// on x86 call this as early as possible because it measures frequency of RDTSC using an asynchronous thread over 3 seconds
+	// on arm64 the counter frequency is read from cntfrq_el0 and no calibration is needed
 	PPCTimer_init();
 
 	WindowsInitCwd();

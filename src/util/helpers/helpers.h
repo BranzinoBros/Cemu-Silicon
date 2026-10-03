@@ -219,6 +219,19 @@ size_t RemoveDuplicatesKeepOrder(std::vector<T>& vec)
 
 void SetThreadName(const char* name);
 
+// scheduling hint for the calling thread. On macOS this maps to the QoS classes which decide whether a thread
+// is placed on performance or efficiency cores. No-op on other platforms
+enum class ThreadQoS
+{
+	UserInteractive, // latency critical, keeps the thread on performance cores (emulated CPU cores, GPU command processor)
+	UserInitiated,
+	Default,
+	Utility, // background work whose result is not waited on (file writers, logging, list scanning)
+	Background,
+};
+
+void SetThreadQoS(ThreadQoS qos);
+
 inline uint64 MakeU64(uint32 high, uint32 low)
 {
 	return ((uint64)high << 32) | ((uint64)low);

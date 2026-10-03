@@ -51,6 +51,7 @@ private:
 	void FileCacheThread()
 	{
 		SetThreadName("fileCache");
+		SetThreadQoS(ThreadQoS::Utility);
 		while (true)
 		{
 			std::unique_lock lock(m_fileCacheMutex);

@@ -115,6 +115,7 @@ void LatteThread_HandleOSScreen()
 int Latte_ThreadEntry()
 {
 	SetThreadName("LatteThread");
+	SetThreadQoS(ThreadQoS::UserInteractive); // keep GPU command processor on performance cores
 	sint32 w,h;
 	WindowSystem::GetWindowPhysSize(w,h);
 

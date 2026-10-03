@@ -1324,6 +1324,7 @@ void wxGameList::RemoveCache(const std::vector<fs::path>& cachePaths, const std:
 void wxGameList::AsyncWorkerThread()
 {
 	SetThreadName("GameListWorker");
+	SetThreadQoS(ThreadQoS::Utility);
 	while (m_async_worker_active)
 	{
 		m_async_task_count.decrementWithWait();

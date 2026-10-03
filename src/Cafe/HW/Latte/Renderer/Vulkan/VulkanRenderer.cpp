@@ -2317,6 +2317,7 @@ void VulkanRenderer::WaitCommandBufferFinished(uint64 commandBufferId)
 void VulkanRenderer::PipelineCacheSaveThread(size_t cache_size)
 {
 	SetThreadName("vkDriverPlCache");
+	SetThreadQoS(ThreadQoS::Utility);
 	const auto dir = ActiveSettings::GetCachePath("shaderCache/driver/vk");
 	if (!fs::exists(dir))
 	{
