@@ -128,6 +128,7 @@ bool cemuLog_advancedPPCLoggingEnabled()
 void cemuLog_thread()
 {
 	SetThreadName("cemuLog_thread");
+	SetThreadQoS(ThreadQoS::Utility);
 	while (true)
 	{
 		std::unique_lock lock(LogContext.log_mutex);

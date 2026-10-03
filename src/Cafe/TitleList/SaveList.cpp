@@ -46,6 +46,7 @@ void CafeSaveList::Refresh()
 void CafeSaveList::RefreshThreadWorker()
 {
 	SetThreadName("SaveListWorker");
+	SetThreadQoS(ThreadQoS::Utility);
 	// clear save list
 	for (auto& itSaveInfo : sSLList)
 	{

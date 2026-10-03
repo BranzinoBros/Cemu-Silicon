@@ -1,15 +1,19 @@
 #include "Cafe/HW/Espresso/Const.h"
 #include "config/ActiveSettings.h"
-#include "util/helpers/fspinlock.h"
 #include "util/highresolutiontimer/HighResolutionTimer.h"
 #include "Common/cpu_features.h"
+
+#include <numeric>
 
 #if defined(ARCH_X86_64)
 #include <immintrin.h>
 #pragma intrinsic(__rdtsc)
 #endif
 
-uint64 _rdtscLastMeasure = 0;
+#if defined(__aarch64__) && BOOST_OS_MACOS
+#include <mach/mach_time.h>
+#endif
+
 uint64 _rdtscFrequency = 0;
 
 struct uint128_t
@@ -20,7 +24,109 @@ struct uint128_t
 
 static_assert(sizeof(uint128_t) == 16);
 
-uint128_t _rdtscAcc{};
+// The guest timebase is a pure function of the host counter within an epoch:
+//   guestTick = guestBase + ((((hostNow - hostBase) * CORE_CLOCK) / hostFrequency) << 3) >> shiftFactor
+// A new epoch is only created when the timer is (re)started or when the timer speed setting changes.
+// Epochs are immutable once published and never freed, so readers need no lock
+struct PPCTimerEpoch
+{
+	uint64 hostBase;
+	uint64 guestBase;
+	uint64 multiplier; // CORE_CLOCK / gcd(CORE_CLOCK, hostFrequency)
+	uint64 divisor; // hostFrequency / gcd(CORE_CLOCK, hostFrequency)
+	uint8 shiftFactor;
+};
+
+static std::atomic<const PPCTimerEpoch*> s_timerEpoch{nullptr};
+static std::atomic<uint64> s_lastGuestTick{0}; // highest tick value handed out so far, guarantees monotonicity across threads
+static std::mutex s_timerEpochMutex;
+static std::vector<std::unique_ptr<PPCTimerEpoch>> s_timerEpochStorage;
+
+// read host counter, ordered after all preceding instructions
+static inline uint64 PPCTimer_readHostCounter()
+{
+#if defined(__aarch64__)
+	uint64 t;
+	asm volatile("isb\n\tmrs %0, cntvct_el0" : "=r"(t) :: "memory");
+	return t;
+#else
+	_mm_mfence();
+	return __rdtsc();
+#endif
+}
+
+static uint64 PPCTimer_epochToGuestTick(const PPCTimerEpoch* epoch, uint64 hostNow)
+{
+	uint64 hostDiff = hostNow - epoch->hostBase;
+	// a counter value older than the epoch start counts as zero elapsed time
+	hostDiff = hostDiff & ~(uint64)((sint64)hostDiff >> 63);
+
+	uint128_t product{};
+	product.low = _umul128(hostDiff, epoch->multiplier, &product.high);
+	uint64 elapsedTick;
+	if (product.high == 0)
+	{
+		elapsedTick = product.low / epoch->divisor;
+	}
+	else
+	{
+		uint64 remainder;
+		elapsedTick = _udiv128(product.high, product.low, epoch->divisor, &remainder);
+	}
+
+	// timer scaling
+	elapsedTick <<= 3ull; // *8
+	elapsedTick >>= epoch->shiftFactor;
+	return epoch->guestBase + elapsedTick;
+}
+
+// caller must hold s_timerEpochMutex
+static const PPCTimerEpoch* PPCTimer_publishEpoch(uint64 hostBase, uint64 guestBase, uint8 shiftFactor)
+{
+	const uint64 hostFrequency = _rdtscFrequency;
+	cemu_assert(hostFrequency != 0);
+	const uint64 divider = std::gcd(Espresso::CORE_CLOCK, hostFrequency);
+	auto epoch = std::make_unique<PPCTimerEpoch>();
+	epoch->hostBase = hostBase;
+	epoch->guestBase = guestBase;
+	epoch->multiplier = Espresso::CORE_CLOCK / divider;
+	epoch->divisor = hostFrequency / divider;
+	epoch->shiftFactor = shiftFactor;
+	const PPCTimerEpoch* epochPtr = epoch.get();
+	s_timerEpochStorage.emplace_back(std::move(epoch));
+	s_timerEpoch.store(epochPtr, std::memory_order_release);
+	return epochPtr;
+}
+
+#if defined(__aarch64__)
+
+static uint64 PPCTimer_getHostCounterFrequency()
+{
+	uint64 frequency;
+	asm volatile("mrs %0, cntfrq_el0" : "=r"(frequency));
+#if BOOST_OS_MACOS
+	if (frequency == 0)
+	{
+		// cntvct_el0 is the counter backing mach_absolute_time
+		mach_timebase_info_data_t timebase;
+		if (mach_timebase_info(&timebase) == KERN_SUCCESS && timebase.numer != 0)
+			frequency = (1000000000ULL * timebase.denom) / timebase.numer;
+	}
+#endif
+	return frequency;
+}
+
+void PPCTimer_init()
+{
+	// the generic timer frequency is fixed and reported by the hardware, no calibration needed
+	const uint64 hostCounterStart = PPCTimer_readHostCounter();
+	_rdtscFrequency = PPCTimer_getHostCounterFrequency();
+	cemu_assert(_rdtscFrequency != 0);
+	std::unique_lock _l(s_timerEpochMutex);
+	PPCTimer_publishEpoch(hostCounterStart, 0, ActiveSettings::GetTimerShiftFactor());
+}
+
+#else
 
 uint64 muldiv64(uint64 a, uint64 b, uint64 d)
 {
@@ -58,36 +164,33 @@ uint64 PPCTimer_estimateRDTSCFrequency()
 	uint64 hrtDiff = HighResolutionTimer::getTimeDiffEx(startTick, stopTick, hrtFreq);
 	uint64 tsc_freq = muldiv64(tsc_diff, hrtFreq, hrtDiff);
 
-	// uint64 freqMultiplier = tsc_freq / hrtFreq;
-	//cemuLog_log(LogType::Force, "RDTSC measurement test:");
-	//cemuLog_log(LogType::Force, "TSC-diff:   0x{:016x}", tsc_diff);
-	//cemuLog_log(LogType::Force, "TSC-freq:   0x{:016x}", tsc_freq);
-	//cemuLog_log(LogType::Force, "HPC-diff:   0x{:016x}", qpc_diff);
-	//cemuLog_log(LogType::Force, "HPC-freq:   0x{:016x}", (uint64)qpc_freq.QuadPart);
-	//cemuLog_log(LogType::Force, "Multiplier: 0x{:016x}", freqMultiplier);
-
 	return tsc_freq;
 }
 
-int PPCTimer_initThread()
+int PPCTimer_initThread(uint64 hostCounterStart)
 {
-	_rdtscFrequency = PPCTimer_estimateRDTSCFrequency();
+	uint64 frequency = PPCTimer_estimateRDTSCFrequency();
+	std::unique_lock _l(s_timerEpochMutex);
+	_rdtscFrequency = frequency;
+	// PPCTimer_start() may have been called in the meantime, in which case its epoch takes precedence
+	if (!s_timerEpoch.load(std::memory_order_relaxed))
+		PPCTimer_publishEpoch(hostCounterStart, 0, ActiveSettings::GetTimerShiftFactor());
 	return 0;
 }
 
 void PPCTimer_init()
 {
-	std::thread t(PPCTimer_initThread);
+	std::thread t(PPCTimer_initThread, PPCTimer_readHostCounter());
 	t.detach();
-	_rdtscLastMeasure = __rdtsc();
 }
 
-uint64 _tickSummary = 0;
+#endif
 
 void PPCTimer_start()
 {
-	_rdtscLastMeasure = __rdtsc();
-	_tickSummary = 0;
+	std::unique_lock _l(s_timerEpochMutex);
+	PPCTimer_publishEpoch(PPCTimer_readHostCounter(), 0, ActiveSettings::GetTimerShiftFactor());
+	s_lastGuestTick.store(0, std::memory_order_relaxed);
 }
 
 uint64 PPCTimer_getRawTsc()
@@ -113,7 +216,7 @@ uint64 PPCTimer_tscToMicroseconds(uint64 us)
 
 bool PPCTimer_isReady()
 {
-	return _rdtscFrequency != 0;
+	return s_timerEpoch.load(std::memory_order_acquire) != nullptr;
 }
 
 void PPCTimer_waitForInit()
@@ -121,47 +224,34 @@ void PPCTimer_waitForInit()
 	while (!PPCTimer_isReady()) std::this_thread::sleep_for(std::chrono::milliseconds(10));
 }
 
-FSpinlock sTimerSpinlock;
+// called when the timer speed setting changed. Starts a new epoch at the current guest time so the timebase stays continuous
+static const PPCTimerEpoch* PPCTimer_changeShiftFactor(uint8 shiftFactor)
+{
+	std::unique_lock _l(s_timerEpochMutex);
+	const PPCTimerEpoch* epoch = s_timerEpoch.load(std::memory_order_acquire);
+	if (epoch->shiftFactor == shiftFactor)
+		return epoch; // another thread already switched
+	const uint64 hostNow = PPCTimer_readHostCounter();
+	const uint64 guestNow = std::max(PPCTimer_epochToGuestTick(epoch, hostNow), s_lastGuestTick.load(std::memory_order_relaxed));
+	return PPCTimer_publishEpoch(hostNow, guestNow, shiftFactor);
+}
 
-// thread safe
+// thread safe and lock-free
 uint64 PPCTimer_getFromRDTSC()
 {
-	sTimerSpinlock.lock();
-	_mm_mfence();
-	uint64 rdtscCurrentMeasure = __rdtsc();
-	uint64 rdtscDif = rdtscCurrentMeasure - _rdtscLastMeasure;
-	// optimized max(rdtscDif, 0) without conditionals
-	rdtscDif = rdtscDif & ~(uint64)((sint64)rdtscDif >> 63);
-
-	uint128_t diff{};
-	diff.low = _umul128(rdtscDif, Espresso::CORE_CLOCK, &diff.high);
-
-	if(rdtscCurrentMeasure > _rdtscLastMeasure)
-		_rdtscLastMeasure = rdtscCurrentMeasure; // only travel forward in time
-
-	uint8 c = 0;
-	#if BOOST_OS_WINDOWS
-	c = _addcarry_u64(c, _rdtscAcc.low, diff.low, &_rdtscAcc.low);
-	_addcarry_u64(c, _rdtscAcc.high, diff.high, &_rdtscAcc.high);
-	#else
-	// requires casting because of long / long long nonesense
-	c = _addcarry_u64(c, _rdtscAcc.low, diff.low, (unsigned long long*)&_rdtscAcc.low);
-	_addcarry_u64(c, _rdtscAcc.high, diff.high, (unsigned long long*)&_rdtscAcc.high);
-	#endif
-
-	uint64 remainder;
-	uint64 elapsedTick = _udiv128(_rdtscAcc.high, _rdtscAcc.low, _rdtscFrequency, &remainder);
-
-	_rdtscAcc.low = remainder;
-	_rdtscAcc.high = 0;
-
-	// timer scaling
-	elapsedTick <<= 3ull; // *8
-	uint8 timerShiftFactor = ActiveSettings::GetTimerShiftFactor();
-	elapsedTick >>= timerShiftFactor;
-
-	_tickSummary += elapsedTick;
-
-	sTimerSpinlock.unlock();
-	return _tickSummary;
+	const PPCTimerEpoch* epoch = s_timerEpoch.load(std::memory_order_acquire);
+	if (!epoch)
+		return 0; // not initialized yet
+	const uint8 shiftFactor = ActiveSettings::GetTimerShiftFactor();
+	if (epoch->shiftFactor != shiftFactor)
+		epoch = PPCTimer_changeShiftFactor(shiftFactor);
+	const uint64 guestTick = PPCTimer_epochToGuestTick(epoch, PPCTimer_readHostCounter());
+	// only travel forward in time, even if another thread already returned a later value
+	uint64 lastGuestTick = s_lastGuestTick.load(std::memory_order_relaxed);
+	while (guestTick > lastGuestTick)
+	{
+		if (s_lastGuestTick.compare_exchange_weak(lastGuestTick, guestTick, std::memory_order_relaxed))
+			return guestTick;
+	}
+	return lastGuestTick;
 }

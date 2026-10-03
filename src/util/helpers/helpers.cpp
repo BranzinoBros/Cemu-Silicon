@@ -16,6 +16,11 @@
 #include <TlHelp32.h>
 #endif
 
+#if BOOST_OS_MACOS
+#include <pthread.h>
+#include <pthread/qos.h>
+#endif
+
 std::string& ltrim(std::string& str, const std::string& chars)
 {
 	str.erase(0, str.find_first_not_of(chars));
@@ -149,6 +154,34 @@ void SetThreadName(const char* name)
 	if(std::strlen(name) > 15)
 		cemuLog_log(LogType::Force, "Truncating thread name {} because it was longer than 15 characters", name);
 	pthread_setname_np(pthread_self(), std::string{name}.substr(0,15).c_str());
+#endif
+}
+
+void SetThreadQoS(ThreadQoS qos)
+{
+#if BOOST_OS_MACOS
+	qos_class_t qosClass;
+	switch (qos)
+	{
+	case ThreadQoS::UserInteractive:
+		qosClass = QOS_CLASS_USER_INTERACTIVE;
+		break;
+	case ThreadQoS::UserInitiated:
+		qosClass = QOS_CLASS_USER_INITIATED;
+		break;
+	case ThreadQoS::Utility:
+		qosClass = QOS_CLASS_UTILITY;
+		break;
+	case ThreadQoS::Background:
+		qosClass = QOS_CLASS_BACKGROUND;
+		break;
+	case ThreadQoS::Default:
+	default:
+		qosClass = QOS_CLASS_DEFAULT;
+		break;
+	}
+	if (pthread_set_qos_class_self_np(qosClass, 0) != 0)
+		cemuLog_log(LogType::Force, "Failed to set QoS class {} for current thread", (sint32)qos);
 #endif
 }
 
